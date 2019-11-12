@@ -4,6 +4,7 @@
 #include <string>
 #include <memory>
 #include <functional>
+#include "CountDownLatch.h"
 #include "noncopyable.h"
 
 class Thread : noncopyable {
@@ -26,6 +27,6 @@ private:
     pid_t tid_;
     ThreadFunc func_;
     std::string name_;
-
+    CountDownLatch latch_;
 };
 
