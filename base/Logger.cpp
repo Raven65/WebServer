@@ -3,17 +3,17 @@
 #include <assert.h>
 #include <time.h>
 #include <sys/time.h>
-
+#include <memory>
 #include "Thread.h"
 #include "AsyncLogging.h"
 
 static pthread_once_t once_control = PTHREAD_ONCE_INIT;
-static AsyncLogging *AsyncLogger_;
+static std::shared_ptr<AsyncLogging> AsyncLogger_;
 
 std::string Logger::logFileName_ = "./WebServer.log";
 
 void once_init() {
-    AsyncLogger_ = new AsyncLogging(Logger::getLogFileName());
+    AsyncLogger_ = std::shared_ptr<AsyncLogging>(new AsyncLogging(Logger::getLogFileName()));
     AsyncLogger_->start();
 }
 
@@ -36,7 +36,7 @@ void Logger::Impl::formatTime() {
     gettimeofday(&tv, NULL);
     time = tv.tv_sec;
     struct tm* p_time = localtime(&time);
-    strftime(str_t, 26, "%Y-%m-%d %H:%M:%S\n", p_time);
+    strftime(str_t, 26, "%Y-%m-%d %H:%M:%S  ", p_time);
     stream_ << str_t;
 }
 
