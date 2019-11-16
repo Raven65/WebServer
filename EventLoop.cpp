@@ -29,7 +29,7 @@ EventLoop::EventLoop()
     if(!t_loopInThisThread) t_loopInThisThread = this;
 
     wakeupChannel_->setReadCallback(std::bind(&EventLoop::handleRead, this));
-    wakeupChannel_->setEvent(EPOLLIN | EPOLLET);
+    wakeupChannel_->setEventNoUpdate(EPOLLIN | EPOLLET);
     poller_->addChannel(wakeupChannel_);
 }
 

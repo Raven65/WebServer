@@ -20,18 +20,19 @@ add_subdirectory(base)
 add_subdirectory(tests)
 
 set(SRC
-    main.cpp
-    EventLoop.cpp
-    Channel.cpp
-    EPoller.cpp)
+    main.cpp)
 
 add_executable(WebServer ${SRC})
-target_link_libraries(WebServer base)
+target_link_libraries(WebServer net)
 
-set(TEST
+set(NET
     EventLoop.cpp
+    EventLoopThread.cpp
+    EventLoopThreadPool.cpp
     Channel.cpp
-    EPoller.cpp)
+    EPoller.cpp
+    SocketUtils.cpp
+    Server.cpp)
 
-add_library(forTest ${TEST})
-target_link_libraries(forTest base)
+add_library(net ${NET})
+target_link_libraries(net base)

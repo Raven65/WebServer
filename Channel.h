@@ -1,11 +1,11 @@
 #pragma once
 
 #include <functional>
-#include "base/noncopyable.h"
+#include <memory>
 
 class EventLoop;
 
-class Channel : noncopyable {
+class Channel : public std::enable_shared_from_this<Channel> {
 public:
     typedef std::function<void()> EventCallback;
 
@@ -23,18 +23,18 @@ public:
     void setRevents(int revt) { revents_ = revt; }
     bool isNoneEvent() const { return events_ == 0; }
 
-    void setEvent(int ev) { events_ = ev; }
+    void setEvent(int ev) { events_ = ev; update(); }
+    void setEventNoUpdate(int ev) { events_ = ev; }
     
     int index() { return index_; }
     void setIndex(int idx) { index_ = idx; }
 
     EventLoop* ownerLoop() { return loop_; }
-
-
+    
+    void newCallback();
 
 private:
     void update();
-
 
     EventLoop* loop_;
     const int fd_;
