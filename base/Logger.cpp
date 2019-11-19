@@ -27,6 +27,7 @@ Logger::Impl::Impl(const char* fileName, int line)
       line_(line),
       basename_(fileName) {
     formatTime();
+    stream_ << "Thread " << CurrentThread::tid() << ": ";
 }
 
 void Logger::Impl::formatTime() {
@@ -36,8 +37,10 @@ void Logger::Impl::formatTime() {
     gettimeofday(&tv, NULL);
     time = tv.tv_sec;
     struct tm* p_time = localtime(&time);
-    strftime(str_t, 26, "%Y-%m-%d %H:%M:%S  ", p_time);
-    stream_ << str_t;
+    strftime(str_t, 26, "%Y-%m-%d %H:%M:%S", p_time);
+    char ms[4];
+    snprintf(ms, sizeof(ms), "%03d", static_cast<int>(tv.tv_usec/1000));
+    stream_ << str_t << "." << ms << "    ";
 }
 
 Logger::Logger(const char* fileName, int line) : impl_(fileName, line) {}

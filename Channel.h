@@ -23,18 +23,17 @@ public:
     void setRevents(int revt) { revents_ = revt; }
     bool isNoneEvent() const { return events_ == 0; }
 
-    void setEvent(int ev) { events_ = ev; update(); }
-    void setEventNoUpdate(int ev) { events_ = ev; }
-    
+    void setEvent(int ev) { events_ = ev; }
+    void update();
+    void remove();
+
     int index() { return index_; }
     void setIndex(int idx) { index_ = idx; }
 
     EventLoop* ownerLoop() { return loop_; }
     
-    void newCallback();
 
 private:
-    void update();
 
     EventLoop* loop_;
     const int fd_;
@@ -48,3 +47,4 @@ private:
     EventCallback closeCallback_;
 };
 
+typedef std::shared_ptr<Channel> ChannelPtr;

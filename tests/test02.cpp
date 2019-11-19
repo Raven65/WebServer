@@ -1,10 +1,10 @@
 #include <iostream>
-#include "../Server.h"
+#include "../WebServer.h"
 
 int main(int argc, char* argv[])
 {
     EventLoop eventloop;
-    Server server(&eventloop, 4, atoi(argv[1]));
+    WebServer server(&eventloop, 4, atoi(argv[1]));
     server.start();
     eventloop.loop();
     return 0;

@@ -20,7 +20,7 @@ int EPoller::epoll(int timeout, ChannelList* activeChannels) {
     int numEvents = epoll_wait(epollfd_, events_.data(), static_cast<int>(events_.size()), timeout);
 
     if (numEvents > 0) {
-        LOG << numEvents <<" events happended";
+        //LOG << numEvents <<" events happended";
 
         fillActiveChannels(numEvents, activeChannels);
         
@@ -62,7 +62,7 @@ void EPoller::addChannel(ChannelPtr channel) {
 
 void EPoller::updateChannel(ChannelPtr channel) {
     int fd = channel->fd();
-    LOG << "Epoll MOD fd = " << fd;
+    // LOG << "Epoll MOD fd = " << fd;
     
     assert(channels_.find(fd) != channels_.end());
     assert(channels_[fd] == channel);

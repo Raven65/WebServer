@@ -5,4 +5,4 @@ add_executable(test01 test01.cpp)
 target_link_libraries(test01 net)
 
 add_executable(test02 test02.cpp)
-target_link_libraries(test02 net)
+target_link_libraries(test02 web)

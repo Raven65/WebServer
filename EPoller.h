@@ -11,7 +11,6 @@ struct epoll_event;
 
 class EPoller : noncopyable {
 public:
-    typedef std::shared_ptr<Channel> ChannelPtr;
     typedef std::vector<struct epoll_event> EventsList;
     typedef std::unordered_map<int, ChannelPtr> ChannelMap;
     typedef std::vector<ChannelPtr> ChannelList;

@@ -19,20 +19,25 @@ string(REPLACE ";" " " CMAKE_CXX_FLAGS "${CXX_FLAGS}")
 add_subdirectory(base)
 add_subdirectory(tests)
 
-set(SRC
-    main.cpp)
-
-add_executable(WebServer ${SRC})
-target_link_libraries(WebServer net)
-
 set(NET
     EventLoop.cpp
     EventLoopThread.cpp
     EventLoopThreadPool.cpp
     Channel.cpp
     EPoller.cpp
-    SocketUtils.cpp
-    Server.cpp)
+    SocketUtils)
 
 add_library(net ${NET})
 target_link_libraries(net base)
+
+set(WEB
+    WebServer.cpp
+    HttpConn.cpp)
+
+add_library(web ${WEB})
+target_link_libraries(web net)
+
+
+add_executable(WebServer main.cpp)
+target_link_libraries(WebServer web)
+
