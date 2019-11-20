@@ -15,6 +15,8 @@
 const int initBuffSize = 1024;
 const char HttpConn::CRLF[] = "\r\n";
 const int defautlEvent = EPOLLIN | EPOLLET | EPOLLONESHOT;
+const int defaultTimeout = 2000;
+const long keepAliveTimeout = 2 * 60 * 1000;
 const std::string root = "/home/xiaojy/project/WebServer/html";
 
 
@@ -63,6 +65,7 @@ void HttpConn::read() {
         handleResponse(BadRequest);
     } else if (readBytes == 0) {
         connStatus_ = Disconnecting;
+        loop_->clearTimer(fd_);
         if (parseState_ != Finished) {
             body_ = "Request is not complete!";
             handleResponse(BadRequest);
@@ -73,6 +76,12 @@ void HttpConn::read() {
         if(c != Wait) handleResponse(c);
     }
     handleConn();
+    if (connStatus_ == Connected) {
+        if (linger_) 
+            loop_->addTimer(fd_, keepAliveTimeout, std::bind(&HttpConn::close, shared_from_this())); 
+        else 
+            loop_->addTimer(fd_, defaultTimeout, std::bind(&HttpConn::close, shared_from_this()));   
+    }
 }
 
 void HttpConn::write() {
@@ -84,12 +93,13 @@ void HttpConn::write() {
             send_idx_ += writeBytes;
         }
     }
-    handleConn();    
+    handleConn();
 }
 
 void HttpConn::close() {
     connStatus_ = Disconnected;
     HttpConnPtr guard(shared_from_this());
+    channel_->setEvent(0);
     loop_->removeChannel(channel_);
     server_->removeConn(guard);    
 }
@@ -239,7 +249,7 @@ HttpConn::StatusCode HttpConn::processRequest() {
         return OK;
     } else if (method_ == Get) {
         path_ = ::root + path_;
-        LOG << "Processing GET request from " << from_ << ": get" << path_;
+        LOG << "Processing GET request from " << from_ << ": get " << path_;
         struct stat fileStat;
         if (stat(path_.c_str(), &fileStat) < 0) {
             body_ = "File does not exist!";
@@ -303,15 +313,9 @@ void HttpConn::handleConn() {
                 event &= ~EPOLLOUT;
                 reset();
             }
-
-
             if (linger_) {
                 event |= defautlEvent;
-                //TODO: 定时心跳
-                //TODO: 重置状态
-            } else {
-                
-            }
+            } 
             channel_->setEvent(event);
         }
     }
@@ -319,7 +323,6 @@ void HttpConn::handleConn() {
         if(send_idx_ != write_idx_)
             channel_->setEvent (EPOLLOUT | EPOLLET);
         else {
-            channel_->setEvent(0);
             loop_->runInLoop(std::bind(&HttpConn::close, shared_from_this()));
             return;
         }

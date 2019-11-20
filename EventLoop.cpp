@@ -2,6 +2,7 @@
 #include <sys/eventfd.h>
 #include <unistd.h>
 #include <sys/epoll.h>
+#include "Timer.h"
 #include "base/Logger.h"
 
 __thread EventLoop* t_loopInThisThread = 0;
@@ -31,6 +32,7 @@ EventLoop::EventLoop()
     wakeupChannel_->setReadCallback(std::bind(&EventLoop::handleRead, this));
     wakeupChannel_->setEvent(EPOLLIN | EPOLLET);
     poller_->addChannel(wakeupChannel_);
+    timer_ = std::shared_ptr<TimerHeap>(new TimerHeap(this));
 }
 
 EventLoop::~EventLoop() {
@@ -129,4 +131,12 @@ void EventLoop::doPendingFuntors() {
     }
 
     callingPendingFunctors_ = false;
+}
+
+void EventLoop::addTimer(int connfd, long timeout, Functor cb) {
+    timer_->addTimer(connfd, timeout, std::move(cb));
+}
+
+void EventLoop::clearTimer(int connfd) {
+    timer_->clearTimer(connfd);
 }

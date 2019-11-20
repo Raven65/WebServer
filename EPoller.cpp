@@ -1,5 +1,6 @@
 #include "EPoller.h"
 
+#include <iostream>
 #include <sys/epoll.h>
 #include <unistd.h>
 #include "base/Logger.h"
@@ -20,7 +21,7 @@ int EPoller::epoll(int timeout, ChannelList* activeChannels) {
     int numEvents = epoll_wait(epollfd_, events_.data(), static_cast<int>(events_.size()), timeout);
 
     if (numEvents > 0) {
-        //LOG << numEvents <<" events happended";
+        // LOG << numEvents <<" events happended";
 
         fillActiveChannels(numEvents, activeChannels);
         
@@ -44,7 +45,6 @@ void EPoller::fillActiveChannels(int numEvents, ChannelList* activeChannels) con
 
 void EPoller::addChannel(ChannelPtr channel) {
     int fd = channel->fd();
-    LOG << "Epoll ADD fd = " << fd;
     
     assert(channels_.find(fd) == channels_.end());
     channels_[fd] = channel;
@@ -58,6 +58,7 @@ void EPoller::addChannel(ChannelPtr channel) {
         LOG << "epoll_add error";
         channels_.erase(fd);
     }
+    LOG << "Epoll ADD fd = " << fd;
 }
 
 void EPoller::updateChannel(ChannelPtr channel) {
@@ -79,7 +80,6 @@ void EPoller::updateChannel(ChannelPtr channel) {
 
 void EPoller::removeChannel(ChannelPtr channel) {
     int fd = channel->fd();
-    LOG << "Epoll DEL fd = " << fd;
     assert(channels_.find(fd) != channels_.end());
     assert(channels_[fd] == channel);
     assert(channel->isNoneEvent());
@@ -92,4 +92,5 @@ void EPoller::removeChannel(ChannelPtr channel) {
     if (epoll_ctl(epollfd_, EPOLL_CTL_DEL, fd, &event) < 0) {
         LOG << "Error: epoll_del error";
     } 
+    LOG << "Epoll DEL fd = " << fd;
 }

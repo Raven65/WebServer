@@ -10,6 +10,7 @@
 
 class Channel;
 class EPoller;
+class TimerHeap;
 
 class EventLoop : noncopyable {
 public:
@@ -28,6 +29,9 @@ public:
     void addChannel(ChannelPtr channel);
     void updateChannel(ChannelPtr channel);
     void removeChannel(ChannelPtr channel);
+
+    void addTimer(int connfd, long timeout, Functor f);
+    void clearTimer(int connfd);
     
     static EventLoop* getEventLoopofCurrentThread();
 private:
@@ -35,9 +39,10 @@ private:
     bool quit_;
     bool callingPendingFunctors_;
     std::shared_ptr<EPoller> poller_;
+    std::shared_ptr<TimerHeap> timer_;
     ChannelList activeChannels_;
     const pid_t threadId_;
-
+    
     int wakeupFd_;
     ChannelPtr wakeupChannel_;
     mutable MutexLock mutex_;
