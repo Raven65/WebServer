@@ -11,7 +11,6 @@
 #include "WebServer.h"
 #include "SocketUtils.h"
 
-
 const int initBuffSize = 1024;
 const char HttpConn::CRLF[] = "\r\n";
 const int defautlEvent = EPOLLIN | EPOLLET | EPOLLONESHOT;
@@ -35,10 +34,13 @@ HttpConn::HttpConn(WebServer* server, EventLoop* loop, int fd, std::string from)
       send_idx_(0),
       linger_(false),
       parseState_(CheckRequestLine){
-
 }
 
-HttpConn::~HttpConn() { LOG << "Close connection from " << from_; ::close(fd_); }
+HttpConn::~HttpConn() { 
+    LOG << "Close connection from " << from_; 
+    loop_->clearTimer(fd_);
+    ::close(fd_); 
+}
 
 void HttpConn::init() {
     channel_->setReadCallback(std::bind(&HttpConn::read, this));
@@ -78,9 +80,9 @@ void HttpConn::read() {
     handleConn();
     if (connStatus_ == Connected) {
         if (linger_) 
-            loop_->addTimer(fd_, keepAliveTimeout, std::bind(&HttpConn::close, shared_from_this())); 
+            loop_->addTimer(fd_, keepAliveTimeout, std::bind(&HttpConn::close, this)); 
         else 
-            loop_->addTimer(fd_, defaultTimeout, std::bind(&HttpConn::close, shared_from_this()));   
+            loop_->addTimer(fd_, defaultTimeout, std::bind(&HttpConn::close, this));   
     }
 }
 
@@ -101,7 +103,7 @@ void HttpConn::close() {
     HttpConnPtr guard(shared_from_this());
     channel_->setEvent(0);
     loop_->removeChannel(channel_);
-    server_->removeConn(guard);    
+    server_->removeConn(guard);
 }
 
 HttpConn::StatusCode HttpConn::parseRequest() {

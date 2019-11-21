@@ -4,14 +4,15 @@
 #include "base/Logger.h"
 #include "EventLoop.h"
 #include "tests/Echo.h"
-
+#include <iostream>
 Channel::Channel(EventLoop* loop, int fd)
     :loop_(loop), fd_(fd), events_(0), revents_(0), index_(-1) {}
 
-Channel::~Channel() {  }
+Channel::~Channel() {}
 
 void Channel::handleEvent() {
     if ((revents_ & EPOLLHUP) && !(revents_ & EPOLLIN)) {
+        ChannelPtr guard(shared_from_this());
         events_ = 0;
         if(closeCallback_) closeCallback_();
     }
