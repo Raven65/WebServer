@@ -58,7 +58,7 @@ void EPoller::addChannel(ChannelPtr channel) {
         LOG << "epoll_add error";
         channels_.erase(fd);
     }
-    LOG << "Epoll ADD fd = " << fd;
+    // LOG << "Epoll ADD fd = " << fd;
 }
 
 void EPoller::updateChannel(ChannelPtr channel) {
@@ -92,5 +92,5 @@ void EPoller::removeChannel(ChannelPtr channel) {
     if (epoll_ctl(epollfd_, EPOLL_CTL_DEL, fd, &event) < 0) {
         LOG << "Error: epoll_del error";
     } 
-    LOG << "Epoll DEL fd = " << fd;
+    // LOG << "Epoll DEL fd = " << fd;
 }

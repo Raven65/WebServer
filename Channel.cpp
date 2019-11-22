@@ -11,9 +11,8 @@ Channel::Channel(EventLoop* loop, int fd)
 Channel::~Channel() {}
 
 void Channel::handleEvent() {
+    ChannelPtr guard(shared_from_this());
     if ((revents_ & EPOLLHUP) && !(revents_ & EPOLLIN)) {
-        ChannelPtr guard(shared_from_this());
-        events_ = 0;
         if(closeCallback_) closeCallback_();
     }
     if (revents_ & EPOLLERR) {

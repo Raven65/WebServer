@@ -37,7 +37,7 @@ HttpConn::HttpConn(WebServer* server, EventLoop* loop, int fd, std::string from)
 }
 
 HttpConn::~HttpConn() { 
-    LOG << "Close connection from " << from_; 
+    // LOG << "Close connection from " << from_; 
     loop_->clearTimer(fd_);
     ::close(fd_); 
 }
@@ -81,8 +81,8 @@ void HttpConn::read() {
     if (connStatus_ == Connected) {
         if (linger_) 
             loop_->addTimer(fd_, keepAliveTimeout, std::bind(&HttpConn::close, this)); 
-        else 
-            loop_->addTimer(fd_, defaultTimeout, std::bind(&HttpConn::close, this));   
+        //else 
+            //loop_->addTimer(fd_, defaultTimeout, std::bind(&HttpConn::close, this));   
     }
 }
 
@@ -101,9 +101,10 @@ void HttpConn::write() {
 void HttpConn::close() {
     connStatus_ = Disconnected;
     HttpConnPtr guard(shared_from_this());
-    channel_->setEvent(0);
-    loop_->removeChannel(channel_);
     server_->removeConn(guard);
+    channel_->setEvent(0);
+    channel_->setRevents(0);
+    loop_->removeChannel(channel_);
 }
 
 HttpConn::StatusCode HttpConn::parseRequest() {
@@ -250,6 +251,10 @@ HttpConn::StatusCode HttpConn::processRequest() {
         LOG << "Processing HEAD request from " << from_;
         return OK;
     } else if (method_ == Get) {
+        if (path_ == "/test") {
+            body_ = "test";
+            return OK;
+        }
         path_ = ::root + path_;
         LOG << "Processing GET request from " << from_ << ": get " << path_;
         struct stat fileStat;
@@ -314,17 +319,23 @@ void HttpConn::handleConn() {
             else {
                 event &= ~EPOLLOUT;
                 reset();
+                if (linger_) {
+                    event |= defautlEvent;
+                } else {
+                    channel_->setEvent(0);
+                    channel_->update();
+                    loop_->runInLoop(std::bind(&HttpConn::close, shared_from_this()));
+                    return;
+                }
             }
-            if (linger_) {
-                event |= defautlEvent;
-            } 
             channel_->setEvent(event);
         }
     }
     else if (connStatus_ == Disconnecting) {
         if(send_idx_ != write_idx_)
-            channel_->setEvent (EPOLLOUT | EPOLLET);
+            channel_->setEvent (EPOLLOUT | EPOLLET | EPOLLONESHOT);
         else {
+            channel_->setEvent(0);
             loop_->runInLoop(std::bind(&HttpConn::close, shared_from_this()));
             return;
         }

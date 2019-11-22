@@ -60,7 +60,7 @@ void WebServer::connectionCallback() {
     while ((connfd = accept(listenFd_, (struct sockaddr*)&cliAddr, &len)) > 0) {
         EventLoop *loop = reactorPool_->getNextLoop();
         
-        LOG << "New connection from " << inet_ntoa(cliAddr.sin_addr) << ":" << ntohs(cliAddr.sin_port);
+        // LOG << "New connection from " << inet_ntoa(cliAddr.sin_addr) << ":" << ntohs(cliAddr.sin_port);
         
         if(connfd >= MAXFD) {
             close(connfd);
@@ -83,7 +83,7 @@ void WebServer::connectionCallback() {
 
 void WebServer::removeConnInLoop(const HttpConnPtr& conn) {
     loop_->assertInLoopThread();
-    LOG << "WebServer::removeConn in socket fd " << conn->fd();
+    // LOG << "WebServer::removeConn in socket fd " << conn->fd();
     connMap_.erase(conn->fd());
 }
 void WebServer::removeConn(const HttpConnPtr& conn) {
