@@ -17,7 +17,7 @@ cd build
 
 希望后续再从nginx学到一些东西。
 
-### 2019-12-11
+### 2019-12-10
 
 在4核CPU，4G内存的虚拟机Ubuntu中，利用ApacheBench进行了压测，测试结果见imgs目录。
 
