@@ -18,19 +18,7 @@ string(REPLACE ";" " " CMAKE_CXX_FLAGS "${CXX_FLAGS}")
 
 add_subdirectory(base)
 add_subdirectory(tests)
-
-set(NET
-    EventLoop.cpp
-    EventLoopThread.cpp
-    EventLoopThreadPool.cpp
-    Channel.cpp
-    EPoller.cpp
-    Timer.cpp
-    SocketUtils.cpp
-    )
-
-add_library(net ${NET})
-target_link_libraries(net base)
+add_subdirectory(net)
 
 set(WEB
     WebServer.cpp

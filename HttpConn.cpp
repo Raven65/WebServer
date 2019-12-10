@@ -7,9 +7,9 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <algorithm>
-#include "EventLoop.h"
+#include "net/EventLoop.h"
 #include "WebServer.h"
-#include "SocketUtils.h"
+#include "net/SocketUtils.h"
 
 const int initBuffSize = 1024;
 const char HttpConn::CRLF[] = "\r\n";
@@ -251,8 +251,8 @@ HttpConn::StatusCode HttpConn::processRequest() {
         LOG << "Processing HEAD request from " << from_;
         return OK;
     } else if (method_ == Get) {
-        if (path_ == "/test") {
-            body_ = "test";
+        if (path_ == "/hello") {
+            body_ = "Hello World";
             return OK;
         }
         path_ = ::root + path_;
@@ -281,6 +281,7 @@ HttpConn::StatusCode HttpConn::processRequest() {
 
         char* file = static_cast<char*>(mmapAddr);
         body_ = std::string(file, file + fileStat.st_size);
+        contentType_ = "text/html";
         return OK;
     }
     return BadRequest;
@@ -298,6 +299,10 @@ void HttpConn::handleResponse(StatusCode code) {
         case InternalError: header+= " Internal Error"; break;
         case Wait: break;
     } 
+    header += "\r\n";
+    header += "Server: Xiaojy\r\n";
+    header += "Content-Type: ";
+    header += (contentType_.empty()) ? "text/plain" : contentType_;
     header += "\r\n";
     header += "Content-Length: " + std::to_string(body_.size()) + "\r\n";
     header += std::string("Connection: ") + (linger_ ? "keep-alive" : "close") + "\r\n";

@@ -1,9 +1,9 @@
 #pragma once
 #include <memory>
 #include <unordered_map>
-#include "Channel.h"
-#include "EventLoop.h"
-#include "EventLoopThreadPool.h"
+#include "net/Channel.h"
+#include "net/EventLoop.h"
+#include "net/EventLoopThreadPool.h"
 #include "HttpConn.h"
 
 class WebServer

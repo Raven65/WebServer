@@ -1,7 +1,7 @@
 #include <iostream>
 #include <sys/timerfd.h>
-#include "../EventLoop.h"
-#include "../Channel.h"
+#include "../net/EventLoop.h"
+#include "../net/Channel.h"
 #include <sys/epoll.h>
 #include <memory.h>
 #include <memory>
