@@ -14,7 +14,7 @@
 const int initBuffSize = 1024;
 const char HttpConn::CRLF[] = "\r\n";
 const int defautlEvent = EPOLLIN | EPOLLET | EPOLLONESHOT;
-const int defaultTimeout = 2000;
+const int defaultTimeout = 8000;
 const long keepAliveTimeout = 2 * 60 * 1000;
 const std::string root = "/home/xiaojy/project/WebServer/html";
 
@@ -81,8 +81,8 @@ void HttpConn::read() {
     if (connStatus_ == Connected) {
         if (linger_) 
             loop_->addTimer(fd_, keepAliveTimeout, std::bind(&HttpConn::close, this)); 
-        //else 
-            //loop_->addTimer(fd_, defaultTimeout, std::bind(&HttpConn::close, this));   
+        else 
+            loop_->addTimer(fd_, defaultTimeout, std::bind(&HttpConn::close, this));   
     }
 }
 

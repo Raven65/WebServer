@@ -56,7 +56,6 @@ void TimerHeap::clearTimer(int connfd) {
         if (timer) {
             timer->setDeleted();
         }
-        timerMap_.erase(connfd);
     }
 }
 
