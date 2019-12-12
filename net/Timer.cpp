@@ -65,11 +65,16 @@ void TimerHeap::handleTimeout() {
     if (size != sizeof(uint64_t)) {
         LOG << "Timeout Error";
     }
+    
+    TimerPtr tnow = timerHeap_.top();
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    long now = ts.tv_sec * 1000 + ts.tv_nsec / 1000 / 1000;
     while (!timerHeap_.empty()) {
-        TimerPtr tnow = timerHeap_.top();
         if (tnow->isDeleted()) {
             timerHeap_.pop();
-        } else if (tnow->isTimeout()) {
+//            LOG <<"delete";
+        } else if (now > tnow->getTime()) {
             timerHeap_.pop();
             LOG << "Connection Timeout!";
             loop_->runInLoop(std::bind(&Timer::runCallBack, tnow));
