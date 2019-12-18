@@ -2,6 +2,7 @@
 
 #include <sys/timerfd.h>
 #include <sys/epoll.h>
+#include <sys/time.h>
 #include <memory.h>
 #include <time.h>
 #include <unistd.h>
@@ -11,20 +12,13 @@
 
 Timer::Timer(int timeout, timeoutCallBack callBack)
     : callBack_(std::move(callBack)), deleted_(false) {
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    timeout_ = ts.tv_sec * 1000 + ts.tv_nsec / 1000 / 1000 + timeout;
-}
-
-bool Timer::isTimeout() {
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    long now = ts.tv_sec * 1000 + ts.tv_nsec / 1000 / 1000;
-    return now >= timeout_;
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    timeout_ = tv.tv_sec * 1000 + tv.tv_usec / 1000 + timeout;
 }
 
 TimerHeap::TimerHeap(EventLoop* loop) 
-    : timerfd_(timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC)),
+    : timerfd_(timerfd_create(CLOCK_REALTIME, TFD_NONBLOCK | TFD_CLOEXEC)),
       loop_(loop), 
       mutex_() {
     assert(timerfd_ != -1);
@@ -65,16 +59,15 @@ void TimerHeap::handleTimeout() {
     if (size != sizeof(uint64_t)) {
         LOG << "Timeout Error";
     }
-    
-    TimerPtr tnow = timerHeap_.top();
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    long now = ts.tv_sec * 1000 + ts.tv_nsec / 1000 / 1000;
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    long now = tv.tv_sec * 1000 + tv.tv_usec / 1000;
     while (!timerHeap_.empty()) {
+        TimerPtr tnow = timerHeap_.top();
         if (tnow->isDeleted()) {
             timerHeap_.pop();
 //            LOG <<"delete";
-        } else if (now > tnow->getTime()) {
+        } else if (now >= tnow->getTime()) {
             timerHeap_.pop();
             LOG << "Connection Timeout!";
             loop_->runInLoop(std::bind(&Timer::runCallBack, tnow));

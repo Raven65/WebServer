@@ -17,7 +17,6 @@ public:
     bool isDeleted() { return deleted_; }
     void runCallBack() { if(callBack_) callBack_(); }
     long getTime() { return timeout_; }
-    bool isTimeout();
 
 private:
     long timeout_;
