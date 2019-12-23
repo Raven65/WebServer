@@ -51,6 +51,7 @@ void EventLoop::loop() {
     quit_ = false;
     while (!quit_) {
         activeChannels_.clear();
+        timer_->setTimeFlag();
         poller_->epoll(kTimeoutMs, &activeChannels_);
         for (auto channel: activeChannels_) {
             channel->handleEvent();
@@ -134,8 +135,8 @@ void EventLoop::doPendingFuntors() {
 }
 
 void EventLoop::addTimer(int connfd, long timeout, Functor cb) {
-    queueInLoop(std::bind(&TimerHeap::addTimer, timer_, connfd, timeout, std::move(cb)));
-//    timer_->addTimer(connfd, timeout, std::move(cb));
+//    queueInLoop(std::bind(&TimerHeap::addTimer, timer_, connfd, timeout, std::move(cb)));
+    timer_->addTimer(connfd, timeout, std::move(cb));
 }
 
 void EventLoop::clearTimer(int connfd) {

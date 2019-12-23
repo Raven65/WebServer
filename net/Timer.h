@@ -10,10 +10,10 @@
 typedef std::function<void()> timeoutCallBack;
 class Timer : noncopyable {
 public:
-    Timer(int timeout, timeoutCallBack callBack);
+    Timer(long timeout, timeoutCallBack callBack);
     ~Timer() {}
     
-    void setDeleted() { deleted_ = true; }
+    void setDeleted() { deleted_ = true; callBack_ = std::function<void()>(); }
     bool isDeleted() { return deleted_; }
     void runCallBack() { if(callBack_) callBack_(); }
     long getTime() { return timeout_; }
@@ -39,6 +39,7 @@ public:
     struct TimerCmp {
         bool operator()(TimerPtr& ta, TimerPtr& tb) { return ta->getTime() > tb->getTime(); }  
     };
+    void setTimeFlag() { timeFlag_ = true; }
 private:
     int timerfd_;
     EventLoop* loop_;
@@ -46,6 +47,8 @@ private:
     std::unordered_map<int, std::weak_ptr<Timer>> timerMap_;
     std::priority_queue<TimerPtr, std::deque<TimerPtr>, TimerCmp> timerHeap_;
     MutexLock mutex_;
+    long timeCache_;
+    bool timeFlag_;
 
     void setTime(long time);
 };

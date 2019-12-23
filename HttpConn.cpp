@@ -1,5 +1,6 @@
 #include "HttpConn.h"
 
+#include <iostream>
 #include <sys/socket.h>
 #include <sys/epoll.h>
 #include <sys/stat.h>
@@ -13,9 +14,9 @@
 
 const int initBuffSize = 1024;
 const char HttpConn::CRLF[] = "\r\n";
-const int defautlEvent = EPOLLIN | EPOLLET | EPOLLONESHOT;
-const int defaultTimeout = 8000;
-const long keepAliveTimeout = 2 * 60 * 1000;
+const int defautlEvent = EPOLLIN | EPOLLOUT | EPOLLET;
+const int defaultTimeout = 8 * 1000;
+const long keepAliveTimeout =  90 * 1000;
 const std::string root = "/home/xiaojy/project/WebServer/html";
 
 
@@ -33,13 +34,13 @@ HttpConn::HttpConn(WebServer* server, EventLoop* loop, int fd, std::string from)
       write_idx_(0),
       send_idx_(0),
       linger_(false),
-      parseState_(CheckRequestLine){
+      parseState_(CheckRequestLine),
+      readable_(true), 
+      writeable_(false) {
 }
 
 HttpConn::~HttpConn() { 
-    // LOG << "Close connection from " << from_; 
-    loop_->clearTimer(fd_);
-    ::close(fd_); 
+    ::close(fd_);
 }
 
 void HttpConn::init() {
@@ -57,6 +58,10 @@ void HttpConn::reset() {
     write_idx_ = send_idx_ = 0;
     headers_.clear();
     body_.clear();
+    readable_ = true;
+    writeable_ = false;
+    channel_->setEvent(defautlEvent);
+    channel_->update();
 }
 
 void HttpConn::read() {
@@ -67,27 +72,32 @@ void HttpConn::read() {
         handleResponse(BadRequest);
     } else if (readBytes == 0) {
         connStatus_ = Disconnecting;
-        loop_->clearTimer(fd_);
         if (parseState_ != Finished) {
             body_ = "Request is not complete!";
             handleResponse(BadRequest);
-        } 
-    } else {
+        }
+    }
+    else {
         read_idx_ += readBytes;
         StatusCode c = parseRequest();
-        if(c != Wait) handleResponse(c);
+        if (c != Wait) {
+            handleResponse(c);
+        } else {
+            channel_->update();
+        }
     }
-    handleConn();
+    
     if (connStatus_ == Connected) {
         if (linger_) 
             loop_->addTimer(fd_, keepAliveTimeout, std::bind(&HttpConn::close, this)); 
         else 
             loop_->addTimer(fd_, defaultTimeout, std::bind(&HttpConn::close, this));   
     }
+    // handleConn();
 }
 
 void HttpConn::write() {
-    if (connStatus_ != Disconnected) {
+    if (writeable_ && write_idx_ != send_idx_) {
         int writeBytes;
         if ((writeBytes = writen(fd_, writeBuff_.data() + send_idx_, write_idx_ - send_idx_)) < 0) {
             LOG << "Http Response Error: HttpConn::write()";
@@ -95,16 +105,26 @@ void HttpConn::write() {
             send_idx_ += writeBytes;
         }
     }
-    handleConn();
+
+    if (parseState_ == Finished && write_idx_ == send_idx_) {
+        if (connStatus_ == Connected && linger_) {
+            reset();
+        } else {
+            channel_->setEvent(0);
+            channel_->update();
+            loop_->runInLoop(std::bind(&HttpConn::close, shared_from_this()));
+            return;
+        }
+    }
+    //handleConn();
 }
 
 void HttpConn::close() {
     connStatus_ = Disconnected;
     HttpConnPtr guard(shared_from_this());
     server_->removeConn(guard);
-    channel_->setEvent(0);
-    channel_->setRevents(0);
     loop_->removeChannel(channel_);
+    loop_->clearTimer(fd_);
 }
 
 HttpConn::StatusCode HttpConn::parseRequest() {
@@ -312,40 +332,30 @@ void HttpConn::handleResponse(StatusCode code) {
     write_idx_ += header.size();
     std::copy(body_.begin(), body_.end(), writeBuff_.data() + write_idx_);
     write_idx_ += body_.size();
+    writeable_ = true;
 }
 
 void HttpConn::handleConn() {
-    int event = channel_->events();
     if (connStatus_ == Connected) {
-        if (parseState_ != Finished) {
-            channel_->setEvent(defautlEvent);
-        } else {
-            if(send_idx_ != write_idx_) event |= EPOLLOUT;
-            else {
-                event &= ~EPOLLOUT;
-                reset();
-                if (linger_) {
-                    event |= defautlEvent;
-                } else {
-                    channel_->setEvent(0);
-                    channel_->update();
-                    loop_->runInLoop(std::bind(&HttpConn::close, shared_from_this()));
-                    return;
-                }
+        if (parseState_ == Finished && send_idx_ == write_idx_) {
+            reset();
+            if (!linger_) {
+                loop_->runInLoop(std::bind(&HttpConn::close, shared_from_this()));
+                return;
             }
-            channel_->setEvent(event);
+        } else {
+            channel_->update();
         }
     }
     else if (connStatus_ == Disconnecting) {
-        if(send_idx_ != write_idx_)
-            channel_->setEvent (EPOLLOUT | EPOLLET | EPOLLONESHOT);
-        else {
-            channel_->setEvent(0);
+        if (send_idx_ == write_idx_) {
             loop_->runInLoop(std::bind(&HttpConn::close, shared_from_this()));
             return;
+        } else {
+            channel_->update();
         }
     }
-    channel_->update();
+    // channel_->update();
 }
 
 int HttpConn::findCRLF(int start) const {

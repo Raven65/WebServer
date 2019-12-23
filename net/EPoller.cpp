@@ -82,7 +82,6 @@ void EPoller::removeChannel(ChannelPtr channel) {
     int fd = channel->fd();
     assert(channels_.find(fd) != channels_.end());
     assert(channels_[fd] == channel);
-    assert(channel->isNoneEvent());
 
     channels_.erase(fd);
     struct epoll_event event;

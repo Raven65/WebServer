@@ -44,7 +44,7 @@ WebServer::WebServer(EventLoop* loop, int threadNum, int port)
 
 void WebServer::start() {
     reactorPool_->start();
-    
+    ignoreSigpipe();    
     acceptChannel_->setReadCallback(std::bind(&WebServer::connectionCallback, this));
     acceptChannel_->setEvent(EPOLLIN | EPOLLET);
     loop_->addChannel(acceptChannel_);
@@ -87,5 +87,5 @@ void WebServer::removeConnInLoop(const HttpConnPtr& conn) {
     connMap_.erase(conn->fd());
 }
 void WebServer::removeConn(const HttpConnPtr& conn) {
-    loop_->queueInLoop(std::bind(&WebServer::removeConnInLoop, this, conn));
+    loop_->runInLoop(std::bind(&WebServer::removeConnInLoop, this, conn));
 }

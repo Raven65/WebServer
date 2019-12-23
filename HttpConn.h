@@ -65,6 +65,8 @@ private:
     Method method_;
     std::string path_;
     Version version_;
+    bool readable_;
+    bool writeable_;
     static const char CRLF[];
 
     static const std::string root;
