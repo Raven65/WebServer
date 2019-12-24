@@ -31,7 +31,7 @@ public:
     void setIndex(int idx) { index_ = idx; }
 
     EventLoop* ownerLoop() { return loop_; }
-    
+    void setLoop(EventLoop* loop) { loop_ = loop; }    
 
 private:
 

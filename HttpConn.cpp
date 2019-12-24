@@ -19,6 +19,22 @@ const int defaultTimeout = 8 * 1000;
 const long keepAliveTimeout =  90 * 1000;
 const std::string root = "/home/xiaojy/project/WebServer/html";
 
+HttpConn::HttpConn(WebServer* server, int fd) 
+    : server_(server),
+      channel_(new Channel(nullptr, fd)),
+      fd_(fd), 
+      connStatus_(Connected),
+      readBuff_(initBuffSize),
+      read_idx_(0),
+      checked_idx_(0), 
+      writeBuff_(initBuffSize),
+      write_idx_(0),
+      send_idx_(0),
+      linger_(false),
+      parseState_(CheckRequestLine),
+      readable_(true), 
+      writeable_(false) {
+}
 
 HttpConn::HttpConn(WebServer* server, EventLoop* loop, int fd, std::string from) 
     : server_(server),
@@ -40,10 +56,12 @@ HttpConn::HttpConn(WebServer* server, EventLoop* loop, int fd, std::string from)
 }
 
 HttpConn::~HttpConn() { 
-    ::close(fd_);
 }
 
-void HttpConn::init() {
+void HttpConn::init(EventLoop* loop, std::string from) {
+    channel_->setLoop(loop);
+    loop_ = loop;
+    from_ = std::move(from);
     channel_->setReadCallback(std::bind(&HttpConn::read, this));
     channel_->setWriteCallback(std::bind(&HttpConn::write, this));
     channel_->setCloseCallback(std::bind(&HttpConn::close, this));
@@ -56,12 +74,24 @@ void HttpConn::reset() {
     parseState_ = CheckRequestLine;
     read_idx_ = checked_idx_ = 0;
     write_idx_ = send_idx_ = 0;
+    std::vector<char> t1(initBuffSize);
+    std::vector<char> t2(initBuffSize);
+    readBuff_.swap(t1);
+    writeBuff_.swap(t2);
     headers_.clear();
     body_.clear();
     readable_ = true;
     writeable_ = false;
     channel_->setEvent(defautlEvent);
     channel_->update();
+}
+
+void HttpConn::close() {
+    connStatus_ = Disconnected;
+    reset();
+    loop_->removeChannel(channel_);
+    loop_->clearTimer(fd_);
+    ::close(fd_); // 必须是最后一步
 }
 
 void HttpConn::read() {
@@ -119,13 +149,6 @@ void HttpConn::write() {
     //handleConn();
 }
 
-void HttpConn::close() {
-    connStatus_ = Disconnected;
-    HttpConnPtr guard(shared_from_this());
-    server_->removeConn(guard);
-    loop_->removeChannel(channel_);
-    loop_->clearTimer(fd_);
-}
 
 HttpConn::StatusCode HttpConn::parseRequest() {
     StatusCode code;
@@ -335,28 +358,6 @@ void HttpConn::handleResponse(StatusCode code) {
     writeable_ = true;
 }
 
-void HttpConn::handleConn() {
-    if (connStatus_ == Connected) {
-        if (parseState_ == Finished && send_idx_ == write_idx_) {
-            reset();
-            if (!linger_) {
-                loop_->runInLoop(std::bind(&HttpConn::close, shared_from_this()));
-                return;
-            }
-        } else {
-            channel_->update();
-        }
-    }
-    else if (connStatus_ == Disconnecting) {
-        if (send_idx_ == write_idx_) {
-            loop_->runInLoop(std::bind(&HttpConn::close, shared_from_this()));
-            return;
-        } else {
-            channel_->update();
-        }
-    }
-    // channel_->update();
-}
 
 int HttpConn::findCRLF(int start) const {
     auto beg = readBuff_.begin();

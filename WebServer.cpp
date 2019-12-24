@@ -40,6 +40,10 @@ WebServer::WebServer(EventLoop* loop, int threadNum, int port)
     assert(setNonBlocking(listenfd) != -1);
     listenFd_ = listenfd;
     acceptChannel_ = std::shared_ptr<Channel>(new Channel(loop_, listenfd));
+
+    for (int i = 0; i < MAXFD; ++i) {
+        connMap_[i] = HttpConnPtr(new HttpConn(this, i));
+    }
 }
 
 void WebServer::start() {
@@ -72,9 +76,8 @@ void WebServer::connectionCallback() {
 
         assert(setNonBlocking(connfd) != -1);
         setNodelay(connfd);
-        HttpConnPtr httpConn(new HttpConn(this, loop, connfd, std::move(from)));
-        connMap_[connfd] = httpConn;
-        loop->queueInLoop(std::bind(&HttpConn::init, httpConn));
+        HttpConnPtr httpConn = connMap_[connfd];
+        loop->runInLoop(std::bind(&HttpConn::init, httpConn, loop, std::move(from)));
     }
 
     acceptChannel_->setEvent(EPOLLIN | EPOLLET);

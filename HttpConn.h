@@ -16,14 +16,16 @@ public:
     enum Version { Http10 = 1, Http11 };
     enum StatusCode { Wait, OK = 200, BadRequest = 400, Forbidden = 403, NotFound = 404, InternalError = 500 };
     enum ParseState { CheckRequestLine, CheckHeaders, CheckBody, Finished };
-    
+
+    HttpConn(WebServer* server, int fd);
     HttpConn(WebServer* server, EventLoop* loop,  int fd, std::string from);
     ~HttpConn();
     
     int fd() { return fd_; }
 
-    void init();
+    void init(EventLoop* loop, std::string from);
     void reset();
+
     void close();
     void read();
     void write();
@@ -39,7 +41,6 @@ private:
     StatusCode processRequest();
 
     void handleResponse(StatusCode code);
-    void handleConn();
 
 private:
     WebServer* server_;
