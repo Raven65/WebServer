@@ -16,6 +16,7 @@ void Channel::handleEvent() {
     }
     if (revents_ & EPOLLERR) {
         if (errorCallback_) errorCallback_();
+        else if (closeCallback_) closeCallback_();
     }
     if (revents_ & (EPOLLIN | EPOLLPRI | EPOLLRDHUP)) {
         if(readCallback_) readCallback_();
@@ -29,12 +30,12 @@ void Channel::update() {
     loop_->updateChannel(shared_from_this());
 }
 
-void Channel::remove() {
-    assert(isNoneEvent());
+void Channel::clearAll() {
+    events_ = 0;
+    revents_ = 0;
     if(closeCallback_) setCloseCallback(NULL);
     if(errorCallback_) setErrorCallback(NULL);
     if(readCallback_) setReadCallback(NULL);
     if(writeCallback_) setWriteCallback(NULL);
-    loop_->removeChannel(shared_from_this());
 }
 

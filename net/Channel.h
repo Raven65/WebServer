@@ -25,7 +25,7 @@ public:
 
     void setEvent(int ev) { events_ = ev; }
     void update();
-    void remove();
+    void clearAll();
 
     int index() { return index_; }
     void setIndex(int idx) { index_ = idx; }

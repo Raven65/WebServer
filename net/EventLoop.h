@@ -33,6 +33,9 @@ public:
     void addTimer(int connfd, long timeout, Functor f);
     void clearTimer(int connfd);
     
+    int getConnCnt() { return connCnt_; }
+    void addConnCnt() { ++connCnt_; }
+    void minusConnCnt() { --connCnt_; }
     static EventLoop* getEventLoopofCurrentThread();
 private:
     bool looping_;
@@ -51,5 +54,6 @@ private:
     void handleRead();
     void doPendingFuntors();
 
+    int connCnt_;
 };
 

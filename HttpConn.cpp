@@ -1,6 +1,5 @@
 #include "HttpConn.h"
 
-#include <iostream>
 #include <sys/socket.h>
 #include <sys/epoll.h>
 #include <sys/stat.h>
@@ -59,8 +58,10 @@ HttpConn::~HttpConn() {
 }
 
 void HttpConn::init(EventLoop* loop, std::string from) {
+    connStatus_ = Connected;
     channel_->setLoop(loop);
     loop_ = loop;
+    loop_->addConnCnt();
     from_ = std::move(from);
     channel_->setReadCallback(std::bind(&HttpConn::read, this));
     channel_->setWriteCallback(std::bind(&HttpConn::write, this));
@@ -83,14 +84,16 @@ void HttpConn::reset() {
     readable_ = true;
     writeable_ = false;
     channel_->setEvent(defautlEvent);
-    channel_->update();
 }
 
 void HttpConn::close() {
     connStatus_ = Disconnected;
     reset();
+    channel_->clearAll();
     loop_->removeChannel(channel_);
     loop_->clearTimer(fd_);
+    loop_->minusConnCnt();
+    linger_ = false;
     ::close(fd_); // 必须是最后一步
 }
 
@@ -106,6 +109,13 @@ void HttpConn::read() {
             body_ = "Request is not complete!";
             handleResponse(BadRequest);
         }
+        if (writeable_) 
+            write();
+        else {
+            loop_->runInLoop(std::bind(&HttpConn::close, this));
+            return;
+        }
+        
     }
     else {
         read_idx_ += readBytes;
@@ -139,10 +149,11 @@ void HttpConn::write() {
     if (parseState_ == Finished && write_idx_ == send_idx_) {
         if (connStatus_ == Connected && linger_) {
             reset();
+            channel_->update();
         } else {
             channel_->setEvent(0);
             channel_->update();
-            loop_->runInLoop(std::bind(&HttpConn::close, shared_from_this()));
+            loop_->runInLoop(std::bind(&HttpConn::close, this));
             return;
         }
     }
