@@ -36,7 +36,7 @@ void TimerHeap::addTimer(int connfd, long timeout, timeoutCallBack callBack) {
     }
     if (timerMap_.find(connfd) != timerMap_.end()) {
         TimerPtr tmp(timerMap_[connfd].lock());
-        if (tmp) {
+        if (tmp && tmp->heapIndex_ != -1) {
             tmp->timeout_ = timeCache_ + timeout;
             tmp->callBack_ = std::move(callBack);
             modify(tmp->heapIndex_);
@@ -67,7 +67,7 @@ void TimerHeap::removeTimer(int connfd) {
 
 void TimerHeap::modify(size_t index) {
     size_t parent = (index - 1) / 2;
-    if (timerHeap_[parent]->timeout_ > timerHeap_[index]->timeout_)
+    if (index > 0 && timerHeap_[parent]->timeout_ > timerHeap_[index]->timeout_)
         upHeap(index);
     else 
         downHeap(index);

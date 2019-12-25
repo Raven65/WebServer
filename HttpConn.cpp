@@ -80,6 +80,7 @@ void HttpConn::reset() {
     readBuff_.swap(t1);
     writeBuff_.swap(t2);
     headers_.clear();
+    outputHeaders_.clear();
     body_.clear();
     readable_ = true;
     writeable_ = false;
@@ -298,15 +299,19 @@ HttpConn::StatusCode HttpConn::parseBody() {
 
 HttpConn::StatusCode HttpConn::processRequest() {
     if (headers_.find("Connection") != headers_.end()) {
-        if(headers_["Connection"] == "keep-alive" || headers_["Connection"] == "Keep-Alive")
+        if (headers_["Connection"] == "keep-alive" || headers_["Connection"] == "Keep-Alive") {
             linger_ = true;
+        } 
     }
+    outputHeaders_["Connection"] = linger_ ? "keep-alive" : "close";
     if (method_ == Head) {
         LOG << "Processing HEAD request from " << from_;
         return OK;
     } else if (method_ == Get) {
         if (path_ == "/hello") {
             body_ = "Hello World";
+            outputHeaders_["Content-Type"] = "text/plain";
+            outputHeaders_["Content-Length"] = std::to_string(body_.size());
             return OK;
         }
         path_ = ::root + path_;
@@ -335,7 +340,8 @@ HttpConn::StatusCode HttpConn::processRequest() {
 
         char* file = static_cast<char*>(mmapAddr);
         body_ = std::string(file, file + fileStat.st_size);
-        contentType_ = "text/html";
+        outputHeaders_["Content-Type"] = "text/html";
+        outputHeaders_["Content-Length"] = std::to_string(body_.size());
         return OK;
     }
     return BadRequest;
@@ -355,11 +361,9 @@ void HttpConn::handleResponse(StatusCode code) {
     } 
     header += "\r\n";
     header += "Server: Xiaojy\r\n";
-    header += "Content-Type: ";
-    header += (contentType_.empty()) ? "text/plain" : contentType_;
-    header += "\r\n";
-    header += "Content-Length: " + std::to_string(body_.size()) + "\r\n";
-    header += std::string("Connection: ") + (linger_ ? "keep-alive" : "close") + "\r\n";
+    for (auto p : outputHeaders_) {
+        header += p.first + ": " +p.second +"\r\n";
+    }
     header += "\r\n";
     while (writeBuff_.size() - write_idx_ < header.size() + body_.size()) writeBuff_.resize(writeBuff_.size() * 2);
     std::copy(header.begin(), header.end(), writeBuff_.data() + write_idx_);

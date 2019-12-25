@@ -59,9 +59,9 @@ private:
     int findCRLF(int start) const;
 
     bool linger_;
-    std::string contentType_;
     std::string body_;
     std::map<std::string, std::string> headers_;
+    std::map<std::string, std::string> outputHeaders_;
     ParseState parseState_;
     Method method_;
     std::string path_;
