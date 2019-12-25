@@ -141,5 +141,5 @@ void EventLoop::addTimer(int connfd, long timeout, Functor cb) {
 }
 
 void EventLoop::clearTimer(int connfd) {
-    timer_->clearTimer(connfd);
+    timer_->removeTimer(connfd);
 }
