@@ -11,7 +11,8 @@ WebServer::WebServer(EventLoop* loop, int threadNum, int port)
       threadNum_(threadNum),
       reactorPool_(new EventLoopThreadPool(loop_, threadNum_)),
       started_(false),
-      port_(port) {
+      port_(port),
+      connPool_(loop, this, MAXFD >> 2) {
     int listenfd = socket(PF_INET, SOCK_STREAM, 0);
     assert(listenfd != -1);
     
@@ -40,14 +41,11 @@ WebServer::WebServer(EventLoop* loop, int threadNum, int port)
     assert(setNonBlocking(listenfd) != -1);
     listenFd_ = listenfd;
     acceptChannel_ = std::shared_ptr<Channel>(new Channel(loop_, listenfd));
-
-    for (int i = 0; i < MAXFD; ++i) {
-        connMap_[i] = HttpConnPtr(new HttpConn(this, i));
-    }
 }
 
 void WebServer::start() {
     reactorPool_->start();
+    connPool_.start();
     ignoreSigpipe();    
     acceptChannel_->setReadCallback(std::bind(&WebServer::connectionCallback, this));
     acceptChannel_->setEvent(EPOLLIN | EPOLLET);
@@ -76,19 +74,18 @@ void WebServer::connectionCallback() {
 
         assert(setNonBlocking(connfd) != -1);
         setNodelay(connfd);
-        HttpConnPtr httpConn = connMap_[connfd];
-        loop->runInLoop(std::bind(&HttpConn::init, httpConn, loop, std::move(from)));
+        HttpConnPtr httpConn = connPool_.getNextConn();
+        loop->runInLoop(std::bind(&HttpConn::init, httpConn, loop, std::move(from), connfd));
     }
 
     acceptChannel_->setEvent(EPOLLIN | EPOLLET);
     acceptChannel_->update();
 }
 
-void WebServer::removeConnInLoop(const HttpConnPtr& conn) {
+void WebServer::returnConnInLoop(HttpConnPtr conn) {
     loop_->assertInLoopThread();
-    // LOG << "WebServer::removeConn in socket fd " << conn->fd();
-    connMap_.erase(conn->fd());
+    connPool_.addFreeConn(std::move(conn));
 }
-void WebServer::removeConn(const HttpConnPtr& conn) {
-    loop_->runInLoop(std::bind(&WebServer::removeConnInLoop, this, conn));
+void WebServer::returnConn(HttpConnPtr conn) {
+    loop_->runInLoop(std::bind(&WebServer::returnConnInLoop, this, std::move(conn)));
 }

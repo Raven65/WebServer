@@ -17,9 +17,11 @@ const int defautlEvent = EPOLLIN | EPOLLOUT | EPOLLET;
 const int defaultTimeout = 8 * 1000;
 const long keepAliveTimeout =  90 * 1000;
 const std::string root = "/home/xiaojy/project/WebServer/html";
+int HttpConn::idCnt = 0;
 
 HttpConn::HttpConn(WebServer* server, int fd) 
-    : server_(server),
+    : id_(idCnt++),
+      server_(server),
       channel_(new Channel(nullptr, fd)),
       fd_(fd), 
       connStatus_(Connected),
@@ -36,7 +38,8 @@ HttpConn::HttpConn(WebServer* server, int fd)
 }
 
 HttpConn::HttpConn(WebServer* server, EventLoop* loop, int fd, std::string from) 
-    : server_(server),
+    : id_(idCnt++),
+      server_(server),
       loop_(loop),
       channel_(new Channel(loop, fd)),
       fd_(fd), 
@@ -57,9 +60,10 @@ HttpConn::HttpConn(WebServer* server, EventLoop* loop, int fd, std::string from)
 HttpConn::~HttpConn() { 
 }
 
-void HttpConn::init(EventLoop* loop, std::string from) {
+void HttpConn::init(EventLoop* loop, std::string from, int fd) {
     connStatus_ = Connected;
-    channel_->setLoop(loop);
+    fd_ = fd;
+    channel_->reset(loop, fd);
     loop_ = loop;
     loop_->addConnCnt();
     from_ = std::move(from);
@@ -89,13 +93,14 @@ void HttpConn::reset() {
 
 void HttpConn::close() {
     connStatus_ = Disconnected;
-    reset();
     channel_->clearAll();
     loop_->removeChannel(channel_);
-    loop_->clearTimer(fd_);
+    ::close(fd_); 
+    reset();
+    loop_->clearTimer(id_);
     loop_->minusConnCnt();
     linger_ = false;
-    ::close(fd_); // 必须是最后一步
+    server_->returnConn(shared_from_this());
 }
 
 void HttpConn::read() {
@@ -130,9 +135,9 @@ void HttpConn::read() {
     
     if (connStatus_ == Connected) {
         if (linger_) 
-            loop_->addTimer(fd_, keepAliveTimeout, std::bind(&HttpConn::close, this)); 
+            loop_->addTimer(id_, keepAliveTimeout, std::bind(&HttpConn::close, this)); 
         else 
-            loop_->addTimer(fd_, defaultTimeout, std::bind(&HttpConn::close, this));   
+            loop_->addTimer(id_, defaultTimeout, std::bind(&HttpConn::close, this));   
     }
     // handleConn();
 }
@@ -233,6 +238,12 @@ HttpConn::StatusCode HttpConn::parseRequesetLine(int end_idx) {
             checked_idx_ += 5;
             break;
         }
+        pos = requestLine.find("POST");
+        if (pos >= 0) {
+            method_ = Post;
+            checked_idx_ += 5;
+            break;
+        }
         //加入其他方法
         return BadRequest;
     } while (false);
@@ -288,9 +299,9 @@ HttpConn::StatusCode HttpConn::parseHeader() {
 }
 
 HttpConn::StatusCode HttpConn::parseBody() {
-
     int contentLen = headers_["Content-Length"].empty() ? 0 : std::stoi(headers_["Content-Length"]);
     if (read_idx_ >= contentLen + checked_idx_) {
+        requestBody_ = std::string(readBuff_.data() + checked_idx_, readBuff_.data() + checked_idx_ + contentLen);
         checked_idx_ += contentLen;
         return OK;
     } 
@@ -343,6 +354,16 @@ HttpConn::StatusCode HttpConn::processRequest() {
         outputHeaders_["Content-Type"] = "text/html";
         outputHeaders_["Content-Length"] = std::to_string(body_.size());
         return OK;
+    } else if (method_ == Post) {
+        if (path_ == "/signup") {
+            
+            return OK;
+        }
+        if (path_ == "/login") {
+            
+            return OK;
+        }
+
     }
     return BadRequest;
 }

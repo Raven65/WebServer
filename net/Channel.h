@@ -31,12 +31,12 @@ public:
     void setIndex(int idx) { index_ = idx; }
 
     EventLoop* ownerLoop() { return loop_; }
-    void setLoop(EventLoop* loop) { loop_ = loop; }    
+    void reset(EventLoop* loop, int fd) { loop_ = loop; fd_ = fd; }    
 
 private:
 
     EventLoop* loop_;
-    const int fd_;
+    int fd_;
     int events_;
     int revents_;
     int index_;

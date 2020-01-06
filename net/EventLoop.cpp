@@ -135,11 +135,11 @@ void EventLoop::doPendingFuntors() {
     callingPendingFunctors_ = false;
 }
 
-void EventLoop::addTimer(int connfd, long timeout, Functor cb) {
+void EventLoop::addTimer(int id, long timeout, Functor cb) {
 //    queueInLoop(std::bind(&TimerHeap::addTimer, timer_, connfd, timeout, std::move(cb)));
-    timer_->addTimer(connfd, timeout, std::move(cb));
+    timer_->addTimer(id, timeout, std::move(cb));
 }
 
-void EventLoop::clearTimer(int connfd) {
-    timer_->removeTimer(connfd);
+void EventLoop::clearTimer(int id) {
+    timer_->removeTimer(id);
 }

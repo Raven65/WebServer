@@ -30,8 +30,8 @@ public:
     void updateChannel(ChannelPtr channel);
     void removeChannel(ChannelPtr channel);
 
-    void addTimer(int connfd, long timeout, Functor f);
-    void clearTimer(int connfd);
+    void addTimer(int id, long timeout, Functor f);
+    void clearTimer(int id);
     
     int getConnCnt() { return connCnt_; }
     void addConnCnt() { ++connCnt_; }

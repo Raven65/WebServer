@@ -21,9 +21,10 @@ public:
     HttpConn(WebServer* server, EventLoop* loop,  int fd, std::string from);
     ~HttpConn();
     
+    int id() { return id_; }
     int fd() { return fd_; }
 
-    void init(EventLoop* loop, std::string from);
+    void init(EventLoop* loop, std::string from, int fd);
     void reset();
 
     void close();
@@ -43,6 +44,7 @@ private:
     void handleResponse(StatusCode code);
 
 private:
+    int id_;
     WebServer* server_;
     EventLoop* loop_;
     ChannelPtr channel_;
@@ -66,11 +68,13 @@ private:
     Method method_;
     std::string path_;
     Version version_;
+    std::string requestBody_;
     bool readable_;
     bool writeable_;
     static const char CRLF[];
 
     static const std::string root;
+    static int idCnt;
 };
 
 typedef std::shared_ptr<HttpConn> HttpConnPtr;

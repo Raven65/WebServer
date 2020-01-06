@@ -35,8 +35,8 @@ public:
     TimerHeap(EventLoop* loop);
     ~TimerHeap();
 
-    void addTimer(int connfd, long timeout, timeoutCallBack callBack);
-    void removeTimer(int connfd);
+    void addTimer(int id, long timeout, timeoutCallBack callBack);
+    void removeTimer(int id);
     
     void modify(size_t index);
     void pop(size_t index);

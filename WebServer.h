@@ -4,7 +4,7 @@
 #include "net/Channel.h"
 #include "net/EventLoop.h"
 #include "net/EventLoopThreadPool.h"
-#include "HttpConn.h"
+#include "HttpConnPool.h"
 
 class WebServer
 {
@@ -14,7 +14,7 @@ public:
     EventLoop *mainLoop() const { return loop_; }
     void start();
     void connectionCallback();
-    void removeConn(const HttpConnPtr& conn);
+    void returnConn(HttpConnPtr conn);
 
 private:
     EventLoop* loop_;
@@ -28,7 +28,7 @@ private:
 
     typedef std::unordered_map<int, HttpConnPtr> ConnectionMap;
 
-    ConnectionMap connMap_;
-    void removeConnInLoop(const HttpConnPtr& conn);
+    HttpConnPool connPool_;
+    void returnConnInLoop(HttpConnPtr conn);
 };
 

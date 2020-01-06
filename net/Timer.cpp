@@ -27,15 +27,15 @@ TimerHeap::TimerHeap(EventLoop* loop)
 
 TimerHeap::~TimerHeap() { close(timerfd_); }
 
-void TimerHeap::addTimer(int connfd, long timeout, timeoutCallBack callBack) {
+void TimerHeap::addTimer(int id, long timeout, timeoutCallBack callBack) {
     if (timeFlag_) {
         struct timespec tv;
         clock_gettime(CLOCK_MONOTONIC, &tv);
         timeCache_ = tv.tv_sec * 1000 + tv.tv_nsec / 1000 / 1000;
         timeFlag_ = false;
     }
-    if (timerMap_.find(connfd) != timerMap_.end()) {
-        TimerPtr tmp(timerMap_[connfd].lock());
+    if (timerMap_.find(id) != timerMap_.end()) {
+        TimerPtr tmp(timerMap_[id].lock());
         if (tmp && tmp->heapIndex_ != -1) {
             tmp->timeout_ = timeCache_ + timeout;
             tmp->callBack_ = std::move(callBack);
@@ -44,7 +44,7 @@ void TimerHeap::addTimer(int connfd, long timeout, timeoutCallBack callBack) {
         }
     }
     TimerPtr timer(new Timer(timeCache_ + timeout, std::move(callBack), timerHeap_.size()));
-    timerMap_[connfd] = timer;
+    timerMap_[id] = timer;
     timerHeap_.push_back(timer);
     upHeap(timerHeap_.size() - 1);
     if (timerHeap_.front() == timer) { 
@@ -52,9 +52,9 @@ void TimerHeap::addTimer(int connfd, long timeout, timeoutCallBack callBack) {
     }
 }
 
-void TimerHeap::removeTimer(int connfd) {
-    if (timerMap_.find(connfd) != timerMap_.end()) {
-        TimerPtr timer(timerMap_[connfd].lock());
+void TimerHeap::removeTimer(int id) {
+    if (timerMap_.find(id) != timerMap_.end()) {
+        TimerPtr timer(timerMap_[id].lock());
         if (timer && timer->heapIndex_ != -1) {
             size_t index = timer->heapIndex_;
             if (!timerHeap_.empty() && index < timerHeap_.size()) {
