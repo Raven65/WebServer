@@ -2,7 +2,10 @@
 #include <arpa/inet.h>
 #include <functional>
 #include <unistd.h>
+#include <fcntl.h>
 #include <sys/epoll.h>
+#include <sys/stat.h>
+#include <sys/mman.h>
 #include "net/SocketUtils.h"
 #include "net/SQLConnection.h"
 #include "base/Logger.h"
@@ -70,6 +73,10 @@ void WebServer::start() {
     acceptChannel_->setReadCallback(std::bind(&WebServer::connectionCallback, this));
     acceptChannel_->setEvent(EPOLLIN | EPOLLET);
     loop_->addChannel(acceptChannel_);
+    cachePage("/index.html");
+    cachePage("/404.html");
+    cachePage("/400.html");
+    cachePage("/403.html");
     started_ = true;
     LOG << "WebServer started on port " <<port_;
 }
@@ -106,9 +113,11 @@ void WebServer::returnConnInLoop(HttpConnPtr conn) {
     loop_->assertInLoopThread();
     connPool_.addFreeConn(std::move(conn));
 }
+
 void WebServer::returnConn(HttpConnPtr conn) {
     loop_->runInLoop(std::bind(&WebServer::returnConnInLoop, this, std::move(conn)));
 }
+
 void WebServer::updateUser(const std::string& name, const std::string& pwd) {
     
     {
@@ -118,4 +127,29 @@ void WebServer::updateUser(const std::string& name, const std::string& pwd) {
     std::string query("INSERT INTO `user` VALUES('");
     query += name + "', '" + pwd +"');";
     if (sql) sql->sqlQuery(query);
+}
+
+void WebServer::cachePage(const std::string& filename) {
+    struct stat fileStat;
+    std::string path = HttpConn::root + "/.." + filename; 
+    if (stat(path.c_str(), &fileStat) < 0) {
+        return;
+    }
+    if (!(fileStat.st_mode & S_IROTH)) {
+        return;
+    }
+    if (S_ISDIR(fileStat.st_mode)) {
+        return;
+    }
+    int fd = open(path.c_str(), O_RDONLY);
+    void* mmapAddr = mmap(0, fileStat.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
+    ::close(fd);
+    if (mmapAddr == (void*)-1) {
+        munmap(mmapAddr, fileStat.st_size);
+        return;
+    }
+
+    char* file = static_cast<char*>(mmapAddr); 
+    HttpConn::cache_[filename] = std::string(file, file + fileStat.st_size);
+    munmap(mmapAddr, fileStat.st_size);
 }

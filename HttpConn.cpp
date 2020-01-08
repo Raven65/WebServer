@@ -20,6 +20,7 @@ const int defaultTimeout = 8 * 1000;
 const long keepAliveTimeout =  90 * 1000;
 const std::string HttpConn::root = get_current_dir_name();
 int HttpConn::idCnt = 0;
+std::unordered_map<std::string, std::string> HttpConn::cache_;
 
 HttpConn::HttpConn(WebServer* server, int fd) 
     : id_(idCnt++),
@@ -403,6 +404,11 @@ std::string HttpConn::findInBody(const std::string& key) {
 }
 
 HttpConn::StatusCode HttpConn::handleFile(const std::string& filepath) {
+    if (cache_.find(filepath) != cache_.end()) {
+        body_ = cache_[filepath];
+        handleType(filepath);
+        return OK;
+    }
     std::string path = root +"/.." + filepath;
     struct stat fileStat;
     if (stat(path.c_str(), &fileStat) < 0) {

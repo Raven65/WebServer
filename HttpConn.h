@@ -4,6 +4,7 @@
 #include <vector>
 #include <string>
 #include <map>
+#include <unordered_map>
 #include "net/Channel.h"
 #include "base/noncopyable.h"
 
@@ -31,7 +32,8 @@ public:
     void read();
     void write();
 
-    
+    static const std::string root; 
+    static std::unordered_map<std::string, std::string> cache_;
 private:
     StatusCode parseRequest();
 
@@ -73,9 +75,8 @@ private:
     bool writeable_;
     static const char CRLF[];
 
-    static const std::string root;
     static int idCnt;
-
+    
     std::string findInBody(const std::string& key);
     StatusCode handleFile(const std::string& filepath);
     void handleType(const std::string& filepath);

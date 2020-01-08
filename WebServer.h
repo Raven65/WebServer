@@ -21,6 +21,8 @@ public:
     bool existUser(const std::string& user) { MutexLockGuard lock(mutex_); return users.find(user) != users.end(); }
     bool verifyUser(const std::string& user, const std::string& pwd) { MutexLockGuard lock(mutex_); return users[user] == pwd;}
     void updateUser(const std::string& user, const std::string& pwd);
+
+    void cachePage(const std::string& filename);
 private:
     EventLoop* loop_;
     int threadNum_;
