@@ -1,9 +1,11 @@
 #pragma once
 #include <memory>
 #include <unordered_map>
+#include "base/MutexLock.h"
 #include "net/Channel.h"
 #include "net/EventLoop.h"
 #include "net/EventLoopThreadPool.h"
+#include "net/SQLConnection.h"
 #include "HttpConnPool.h"
 
 class WebServer
@@ -16,6 +18,9 @@ public:
     void connectionCallback();
     void returnConn(HttpConnPtr conn);
 
+    bool existUser(const std::string& user) { MutexLockGuard lock(mutex_); return users.find(user) != users.end(); }
+    bool verifyUser(const std::string& user, const std::string& pwd) { MutexLockGuard lock(mutex_); return users[user] == pwd;}
+    void updateUser(const std::string& user, const std::string& pwd);
 private:
     EventLoop* loop_;
     int threadNum_;
@@ -29,6 +34,11 @@ private:
     typedef std::unordered_map<int, HttpConnPtr> ConnectionMap;
 
     HttpConnPool connPool_;
+
+    MutexLock mutex_;
+    std::unordered_map<std::string, std::string> users;
+    std::shared_ptr<SQLConnection> sql;
+
     void returnConnInLoop(HttpConnPtr conn);
 };
 

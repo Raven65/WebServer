@@ -6,7 +6,6 @@
 #include "../base/Logger.h"
 
 __thread EventLoop* t_loopInThisThread = 0;
-const int kTimeoutMs = 10000;
 
 int createEventfd() {
     int evtfd = eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
@@ -33,7 +32,7 @@ EventLoop::EventLoop()
     wakeupChannel_->setReadCallback(std::bind(&EventLoop::handleRead, this));
     wakeupChannel_->setEvent(EPOLLIN | EPOLLET);
     poller_->addChannel(wakeupChannel_);
-    timer_ = std::shared_ptr<TimerHeap>(new TimerHeap(this));
+    timer_ = std::make_shared<TimerHeap>(this);
 }
 
 EventLoop::~EventLoop() {
@@ -53,9 +52,10 @@ void EventLoop::loop() {
     while (!quit_) {
         activeChannels_.clear();
         timer_->setTimeFlag();
-        poller_->epoll(kTimeoutMs, &activeChannels_);
+        poller_->epoll(-1, &activeChannels_);
         for (auto channel: activeChannels_) {
-            channel->handleEvent();
+            if (channel->ownerLoop() == this)
+                channel->handleEvent();
         }
         doPendingFuntors();
     }

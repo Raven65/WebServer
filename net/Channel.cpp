@@ -10,6 +10,7 @@ Channel::Channel(EventLoop* loop, int fd)
 Channel::~Channel() {}
 
 void Channel::handleEvent() {
+    if (fd_ == -1) return;
     ChannelPtr guard(shared_from_this());
     if ((revents_ & EPOLLHUP) && !(revents_ & EPOLLIN)) {
         if(closeCallback_) closeCallback_();
@@ -33,6 +34,7 @@ void Channel::update() {
 void Channel::clearAll() {
     events_ = 0;
     revents_ = 0;
+    fd_ = -1;
     if(closeCallback_) setCloseCallback(NULL);
     if(errorCallback_) setErrorCallback(NULL);
     if(readCallback_) setReadCallback(NULL);

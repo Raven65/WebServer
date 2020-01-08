@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include <sys/epoll.h>
 #include "net/SocketUtils.h"
+#include "net/SQLConnection.h"
 #include "base/Logger.h"
 
 WebServer::WebServer(EventLoop* loop, int threadNum, int port)
@@ -41,6 +42,25 @@ WebServer::WebServer(EventLoop* loop, int threadNum, int port)
     assert(setNonBlocking(listenfd) != -1);
     listenFd_ = listenfd;
     acceptChannel_ = std::shared_ptr<Channel>(new Channel(loop_, listenfd));
+
+    sql = std::make_shared<SQLConnection>();
+    if (sql->initConnection("127.0.0.1", "root", "12345678", "WebServer", 3306)) {
+        std::string query("CREATE TABLE `user` (");
+        query += "`username` varchar(255) COLLATE utf8mb4_unicode_520_ci NOT NULL,";
+        query += "`password` varchar(255) COLLATE utf8mb4_unicode_520_ci NOT NULL,";
+        query += "PRIMARY KEY (`username`)";
+        query += ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_520_ci;";
+        sql->sqlQuery(query);
+        
+        std::string query1("SELECT * FROM `user`");
+        if (sql->sqlQuery(query1)) {
+            while (MYSQL_ROW row = sql->fetchRow()) {
+                users[row[0]] = users[row[1]];
+            }
+        }
+    } else{
+        sql.reset();
+    }
 }
 
 void WebServer::start() {
@@ -88,4 +108,14 @@ void WebServer::returnConnInLoop(HttpConnPtr conn) {
 }
 void WebServer::returnConn(HttpConnPtr conn) {
     loop_->runInLoop(std::bind(&WebServer::returnConnInLoop, this, std::move(conn)));
+}
+void WebServer::updateUser(const std::string& name, const std::string& pwd) {
+    
+    {
+        MutexLockGuard lock(mutex_);        
+        users[name] = pwd;
+    }
+    std::string query("INSERT INTO `user` VALUES('");
+    query += name + "', '" + pwd +"');";
+    if (sql) sql->sqlQuery(query);
 }

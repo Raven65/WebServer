@@ -334,47 +334,22 @@ HttpConn::StatusCode HttpConn::processRequest() {
     } else if (method_ == Post) {
         if (path_ == "/signup" || path_ == "/login") {
             
-#if 0
-            std::shared_ptr<SQLConnection> sql = loop_->sqlConnection();
-            if (!sql) {
-                body_ = "Inernal Error!";
-                return InternalError;
-            }
-            
             outputHeaders_["Content-Type"] = "text/plain";
             std::string name = findInBody("username");
             std::string pwd = findInBody("password");
-            
-            if (name.empty() || pwd.empty()) {
-                body_ = "Wrong Body";
-                return OK;
-            }
-
             bool exist = server_->existUser(name);
             if (path_ == "/signup") {
-                if (exist) {
-                    body_ = "User already exist!";
-                    return OK;
-                }
-                std::string query("INSERT INTO `user` VALUES(");
-                query += "'" + name + "', '" + pwd + "')";
-                if (sql->sqlQuery(query)) {
+                if (exist) body_ = "Username Exists!";
+                else {
                     server_->updateUser(name, pwd);
-                    body_= "Sign up OK!";
-                } else {
-                    body_ = "Failed!";
-                    return OK;
+                    body_ = "Successful signup!";
                 }
             }
             if (path_ == "/login") {
-                if (server_->verifyUser(name, pwd)) {
-                    body_ = "Login OK!";
-                } else {
-                    body_ = "Wrong user or password";
-                    return OK;
-                }
+                if (!exist || !server_->verifyUser(name, pwd)) body_ = "Wrong username or wrong password";
+                else body_ = "Successful login!";
             }
-#endif
+
             return OK;
         }
         return BadRequest;
@@ -447,12 +422,13 @@ HttpConn::StatusCode HttpConn::handleFile(const std::string& filepath) {
     ::close(fd);
     if (mmapAddr == (void*)-1) {
         munmap(mmapAddr, fileStat.st_size);
-        handleFile("/400.html");
-        return BadRequest;
+        body_ = "mmap wrong";
+        return InternalError;
     }
 
     char* file = static_cast<char*>(mmapAddr);
     body_ = std::string(file, file + fileStat.st_size);
+    munmap(mmapAddr, fileStat.st_size);
     handleType(filepath);
     return OK;
 }

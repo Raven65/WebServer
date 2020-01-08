@@ -6,6 +6,7 @@
      EPoller.cpp
      Timer.cpp
      SocketUtils.cpp
+     SQLConnection.cpp
      )
  add_library(net ${NET})
- target_link_libraries(net base)
+ target_link_libraries(net base mysqlclient)
