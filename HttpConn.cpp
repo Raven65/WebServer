@@ -1,5 +1,6 @@
 #include "HttpConn.h"
 
+#include <iostream>
 #include <sys/socket.h>
 #include <sys/epoll.h>
 #include <sys/stat.h>
@@ -8,6 +9,7 @@
 #include <unistd.h>
 #include <algorithm>
 #include "net/EventLoop.h"
+#include "net/SQLConnection.h"
 #include "WebServer.h"
 #include "net/SocketUtils.h"
 
@@ -16,7 +18,7 @@ const char HttpConn::CRLF[] = "\r\n";
 const int defautlEvent = EPOLLIN | EPOLLOUT | EPOLLET;
 const int defaultTimeout = 8 * 1000;
 const long keepAliveTimeout =  90 * 1000;
-const std::string root = "/home/xiaojy/project/WebServer/html";
+const std::string HttpConn::root = get_current_dir_name();
 int HttpConn::idCnt = 0;
 
 HttpConn::HttpConn(WebServer* server, int fd) 
@@ -93,13 +95,14 @@ void HttpConn::reset() {
 
 void HttpConn::close() {
     connStatus_ = Disconnected;
-    channel_->clearAll();
     loop_->removeChannel(channel_);
+    channel_->clearAll();
     ::close(fd_); 
     reset();
     loop_->clearTimer(id_);
     loop_->minusConnCnt();
     linger_ = false;
+    fd_ = -1;
     server_->returnConn(shared_from_this());
 }
 
@@ -322,47 +325,59 @@ HttpConn::StatusCode HttpConn::processRequest() {
         if (path_ == "/hello") {
             body_ = "Hello World";
             outputHeaders_["Content-Type"] = "text/plain";
-            outputHeaders_["Content-Length"] = std::to_string(body_.size());
             return OK;
         }
-        path_ = ::root + path_;
-        LOG << "Processing GET request from " << from_ << ": get " << path_;
-        struct stat fileStat;
-        if (stat(path_.c_str(), &fileStat) < 0) {
-            body_ = "File does not exist!";
-            return NotFound;
-        }
-        if (!(fileStat.st_mode & S_IROTH)) {
-            body_ = "Permission denied!";
-            return Forbidden;
-        }
-        if (S_ISDIR(fileStat.st_mode)) {
-            body_ = "It is a directory!";
-            return BadRequest;
-        }
-        int fd = open(path_.c_str(), O_RDONLY);
-        void* mmapAddr = mmap(0, fileStat.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
-        ::close(fd);
-        if (mmapAddr == (void*)-1) {
-            munmap(mmapAddr, fileStat.st_size);
-            body_ = "File can't be opened!";
-            return BadRequest;
-        }
-
-        char* file = static_cast<char*>(mmapAddr);
-        body_ = std::string(file, file + fileStat.st_size);
-        outputHeaders_["Content-Type"] = "text/html";
-        outputHeaders_["Content-Length"] = std::to_string(body_.size());
-        return OK;
+        if (path_ == "/")
+            path_ = "/index.html";
+        // LOG << "Processing GET request from " << from_ << ": get " << path_;
+        return handleFile(path_);
     } else if (method_ == Post) {
-        if (path_ == "/signup") {
+        if (path_ == "/signup" || path_ == "/login") {
             
+#if 0
+            std::shared_ptr<SQLConnection> sql = loop_->sqlConnection();
+            if (!sql) {
+                body_ = "Inernal Error!";
+                return InternalError;
+            }
+            
+            outputHeaders_["Content-Type"] = "text/plain";
+            std::string name = findInBody("username");
+            std::string pwd = findInBody("password");
+            
+            if (name.empty() || pwd.empty()) {
+                body_ = "Wrong Body";
+                return OK;
+            }
+
+            bool exist = server_->existUser(name);
+            if (path_ == "/signup") {
+                if (exist) {
+                    body_ = "User already exist!";
+                    return OK;
+                }
+                std::string query("INSERT INTO `user` VALUES(");
+                query += "'" + name + "', '" + pwd + "')";
+                if (sql->sqlQuery(query)) {
+                    server_->updateUser(name, pwd);
+                    body_= "Sign up OK!";
+                } else {
+                    body_ = "Failed!";
+                    return OK;
+                }
+            }
+            if (path_ == "/login") {
+                if (server_->verifyUser(name, pwd)) {
+                    body_ = "Login OK!";
+                } else {
+                    body_ = "Wrong user or password";
+                    return OK;
+                }
+            }
+#endif
             return OK;
         }
-        if (path_ == "/login") {
-            
-            return OK;
-        }
+        return BadRequest;
 
     }
     return BadRequest;
@@ -382,6 +397,7 @@ void HttpConn::handleResponse(StatusCode code) {
     } 
     header += "\r\n";
     header += "Server: Xiaojy\r\n";
+    outputHeaders_["Content-Length"] = std::to_string(body_.size());
     for (auto p : outputHeaders_) {
         header += p.first + ": " +p.second +"\r\n";
     }
@@ -399,4 +415,58 @@ int HttpConn::findCRLF(int start) const {
     auto beg = readBuff_.begin();
     auto it = std::search(beg + start, beg + read_idx_, CRLF, CRLF + 2);
     return it == readBuff_.end() ? -1 : it - beg;
+}
+
+std::string HttpConn::findInBody(const std::string& key) {
+    size_t idx = requestBody_.find(key);
+    if (idx == requestBody_.npos) return "";
+    idx += key.size() + 1;
+    size_t s_idx = idx;
+    idx = requestBody_.find('&', idx);
+    if (idx == requestBody_.npos) return requestBody_.substr(s_idx);
+    return requestBody_.substr(s_idx, idx - s_idx);
+}
+
+HttpConn::StatusCode HttpConn::handleFile(const std::string& filepath) {
+    std::string path = root +"/.." + filepath;
+    struct stat fileStat;
+    if (stat(path.c_str(), &fileStat) < 0) {
+        handleFile("/404.html");
+        return NotFound;
+    }
+    if (!(fileStat.st_mode & S_IROTH)) {
+        handleFile("/403.html");
+        return Forbidden;
+    }
+    if (S_ISDIR(fileStat.st_mode)) {
+        handleFile("/400.html");
+        return BadRequest;
+    }
+    int fd = open(path.c_str(), O_RDONLY);
+    void* mmapAddr = mmap(0, fileStat.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
+    ::close(fd);
+    if (mmapAddr == (void*)-1) {
+        munmap(mmapAddr, fileStat.st_size);
+        handleFile("/400.html");
+        return BadRequest;
+    }
+
+    char* file = static_cast<char*>(mmapAddr);
+    body_ = std::string(file, file + fileStat.st_size);
+    handleType(filepath);
+    return OK;
+}
+
+void HttpConn::handleType(const std::string& filepath) {
+    if (filepath.find(".html") != filepath.npos) {
+        outputHeaders_["Content-Type"] = "text/html; charset=utf-8";
+    } else if (filepath.find(".jpg") != filepath.npos) {
+        outputHeaders_["Content-Type"] = "image/jpg";
+    } else if (filepath.find(".ico") != filepath.npos) {
+        outputHeaders_["Content-Type"] = "image/x-icon";
+    } else if (filepath.find(".css") != filepath.npos) {
+        outputHeaders_["Content-Type"] = "text/css";
+    } else {
+        outputHeaders_["Content-Type"] = "text/plain";
+    }
 }

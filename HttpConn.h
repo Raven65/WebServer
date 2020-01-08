@@ -75,6 +75,10 @@ private:
 
     static const std::string root;
     static int idCnt;
+
+    std::string findInBody(const std::string& key);
+    StatusCode handleFile(const std::string& filepath);
+    void handleType(const std::string& filepath);
 };
 
 typedef std::shared_ptr<HttpConn> HttpConnPtr;
