@@ -28,6 +28,8 @@
 
 * 使用RAII技术，减少内存泄漏。
 
+* 简单压测可处理上万并发连接。
+
 ### Requirements
 
 * Linux >= 2.6.28
@@ -45,6 +47,8 @@ cd build
 
 ### [Model](https://github.com/Raven65/WebServer/blob/master/MODEL.md)
 
+### [History](https://github.com/Raven65/WebServer/blob/master/HISTORY.md)
+
 ### Performance
 
 测试工具: Apache Bench
@@ -55,10 +59,12 @@ cd build
 
 以下测试时没有连上mysql，根据测试，保持mysql连接对性能有一定影响。
 
-PS: nginx 的Response Header要大的多，所以虽然QPS更小，但从Transfer Rate比较还是nginx更优秀。
+PS: nginx 的Response Header要大的多，所以虽然QPS更小，但从Transfer Rate比较还是nginx更优秀，imgs目录下有具体的结果图。
 
 PPS: 后来又使用了WebBench和http\_load测试，发现用三个测试工具结果差别很大，在WebBench测试时本项目表现比muduo和nginx差了很多，但http\_load测试时又和用AB时一样本项目是表现最好的，应该和客户端实现方式有关，下面结果只针对ApacheBench。
 
-![avatar](https://github.com/Raven65/WebServer/blob/master/imgs/Performance%20close.png)
+分析见<a href="https://github.com/Raven65/WebServer/blob/master/HISTORY.md#bench">这里</a>
 
-![avatar](https://github.com/Raven65/WebServer/blob/master/imgs/Performance%20keep-alive.png)
+![avatar](https://github.com/Raven65/WebServer/blob/master/imgs/performance.png)
+
+![avatar](https://github.com/Raven65/WebServer/blob/master/imgs/performanc-keepalive.png)
