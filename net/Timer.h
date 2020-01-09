@@ -59,6 +59,6 @@ private:
     long timeCache_;
     bool timeFlag_;
 
-    void setTime(long time);
+    void setTime(long now, long time);
 };
 

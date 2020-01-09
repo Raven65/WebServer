@@ -48,7 +48,7 @@ void TimerHeap::addTimer(int id, long timeout, timeoutCallBack callBack) {
     timerHeap_.push_back(timer);
     upHeap(timerHeap_.size() - 1);
     if (timerHeap_.front() == timer) { 
-        setTime(timer->getTimeout());
+        setTime(timeCache_, timer->getTimeout());
     }
 }
 
@@ -127,13 +127,14 @@ void TimerHeap::handleTimeout() {
             LOG << "Connection Timeout!";
             tnow->runCallBack();
         } else {
-            setTime(tnow->getTimeout());
+            setTime(now, tnow->getTimeout());
         }
     }
 }
 
-void TimerHeap::setTime(long time) {
+void TimerHeap::setTime(long now, long time) {
+    time -= now;
     howlong_.it_value.tv_sec = time / 1000;
     howlong_.it_value.tv_nsec = (time % 1000) * 1000 * 1000;
-    timerfd_settime(timerfd_, TFD_TIMER_ABSTIME , &howlong_, NULL);  
+    timerfd_settime(timerfd_, 0, &howlong_, NULL);  
 }
