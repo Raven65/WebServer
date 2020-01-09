@@ -35,9 +35,5 @@ void Channel::clearAll() {
     events_ = 0;
     revents_ = 0;
     fd_ = -1;
-    if(closeCallback_) setCloseCallback(NULL);
-    if(errorCallback_) setErrorCallback(NULL);
-    if(readCallback_) setReadCallback(NULL);
-    if(writeCallback_) setWriteCallback(NULL);
 }
 

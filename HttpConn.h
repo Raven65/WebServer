@@ -15,11 +15,10 @@ public:
     enum ConnStatus { Disconnected, Connected, Disconnecting };
     enum Method { Get = 1, Post, Head, Put, Delete };
     enum Version { Http10 = 1, Http11 };
-    enum StatusCode { Wait, OK = 200, BadRequest = 400, Forbidden = 403, NotFound = 404, InternalError = 500 };
+    enum StatusCode { Wait, OK = 200, BadRequest = 400, Forbidden = 403, NotFound = 404, InternalError = 500 , NoResponse};
     enum ParseState { CheckRequestLine, CheckHeaders, CheckBody, Finished };
 
     HttpConn(WebServer* server, int fd);
-    HttpConn(WebServer* server, EventLoop* loop,  int fd, std::string from);
     ~HttpConn();
     
     int id() { return id_; }
@@ -76,7 +75,8 @@ private:
     static const char CRLF[];
 
     static int idCnt;
-    
+    static const std::map<std::string, std::string> contentType_;
+
     std::string findInBody(const std::string& key);
     StatusCode handleFile(const std::string& filepath);
     void handleType(const std::string& filepath);

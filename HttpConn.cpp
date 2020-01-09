@@ -1,12 +1,14 @@
 #include "HttpConn.h"
 
-#include <iostream>
+#include <stdio.h>
 #include <sys/socket.h>
 #include <sys/epoll.h>
 #include <sys/stat.h>
 #include <sys/mman.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <stdlib.h>
+#include <sys/wait.h>
 #include <algorithm>
 #include "net/EventLoop.h"
 #include "net/SQLConnection.h"
@@ -17,10 +19,21 @@ const int initBuffSize = 1024;
 const char HttpConn::CRLF[] = "\r\n";
 const int defautlEvent = EPOLLIN | EPOLLOUT | EPOLLET;
 const int defaultTimeout = 8 * 1000;
-const long keepAliveTimeout =  90 * 1000;
+const long keepAliveTimeout = 90 * 1000;
 const std::string HttpConn::root = get_current_dir_name();
 int HttpConn::idCnt = 0;
 std::unordered_map<std::string, std::string> HttpConn::cache_;
+const std::map<std::string, std::string> HttpConn::contentType_ = {
+    {".html", "text/html; charset=utf-8"},
+    {".xml", "text/xml"},
+    {".txt", "text/plain"},
+    {".png", "image/png"},
+    {".gif", "image/gif"},
+    {".jpg", "image/jpeg"},
+    {".jpeg", "image/jpeg"},
+    {".ico", "image/x-icon"},
+    {".css", "text/css"}
+};
 
 HttpConn::HttpConn(WebServer* server, int fd) 
     : id_(idCnt++),
@@ -38,26 +51,9 @@ HttpConn::HttpConn(WebServer* server, int fd)
       parseState_(CheckRequestLine),
       readable_(true), 
       writeable_(false) {
-}
-
-HttpConn::HttpConn(WebServer* server, EventLoop* loop, int fd, std::string from) 
-    : id_(idCnt++),
-      server_(server),
-      loop_(loop),
-      channel_(new Channel(loop, fd)),
-      fd_(fd), 
-      from_(std::move(from)),
-      connStatus_(Connected),
-      readBuff_(initBuffSize),
-      read_idx_(0),
-      checked_idx_(0), 
-      writeBuff_(initBuffSize),
-      write_idx_(0),
-      send_idx_(0),
-      linger_(false),
-      parseState_(CheckRequestLine),
-      readable_(true), 
-      writeable_(false) {
+    channel_->setReadCallback(std::bind(&HttpConn::read, this));
+    channel_->setWriteCallback(std::bind(&HttpConn::write, this));
+    channel_->setCloseCallback(std::bind(&HttpConn::close, this));
 }
 
 HttpConn::~HttpConn() { 
@@ -66,29 +62,20 @@ HttpConn::~HttpConn() {
 void HttpConn::init(EventLoop* loop, std::string from, int fd) {
     connStatus_ = Connected;
     fd_ = fd;
+    outputHeaders_.clear();
+    headers_.clear();
     channel_->reset(loop, fd);
     loop_ = loop;
     loop_->addConnCnt();
     from_ = std::move(from);
-    channel_->setReadCallback(std::bind(&HttpConn::read, this));
-    channel_->setWriteCallback(std::bind(&HttpConn::write, this));
-    channel_->setCloseCallback(std::bind(&HttpConn::close, this));
     channel_->setEvent(defautlEvent);
     loop_->addChannel(channel_);
 }
 
 void HttpConn::reset() {
-    path_.clear();
     parseState_ = CheckRequestLine;
     read_idx_ = checked_idx_ = 0;
     write_idx_ = send_idx_ = 0;
-    std::vector<char> t1(initBuffSize);
-    std::vector<char> t2(initBuffSize);
-    readBuff_.swap(t1);
-    writeBuff_.swap(t2);
-    headers_.clear();
-    outputHeaders_.clear();
-    body_.clear();
     readable_ = true;
     writeable_ = false;
     channel_->setEvent(defautlEvent);
@@ -353,7 +340,42 @@ HttpConn::StatusCode HttpConn::processRequest() {
 
             return OK;
         }
-        return BadRequest;
+        //issue: pipe does not work
+        if (path_.find("/cgi") != path_.npos) {
+            if (path_.find("/add") != path_.npos) {
+                pid_t pid;
+                int pipefd[2];
+                if (pipe(pipefd) != 0) 
+                    return InternalError;
+                std::string x = findInBody("x");
+                std::string y = findInBody("y");
+                std::string path = root + "/.." + path_;
+                if ((pid = fork()) < 0) {
+                    return InternalError;
+                } else if (pid == 0) {
+                    ::close(pipefd[0]);
+                    dup2(pipefd[1], STDOUT_FILENO);
+                    ::close(pipefd[1]);
+                    execl(path.c_str(), x.c_str(), y.c_str(), NULL);
+                } else {
+                    ::close(pipefd[1]);
+                    char res[20];
+                    int len;
+                    if ((len = ::read(pipefd[0], res, 1) < 0)) {
+                        return InternalError; 
+                    }
+                    std::string sum(res, res + len);
+                    body_ = sum;
+                    printf("%d %d %d\n",pipefd[0], pipefd[1], len);
+                    outputHeaders_["Content-Type"] = "text/plain";
+                    waitpid(pid, NULL, 0);
+                    ::close(pipefd[0]);
+                    return OK;
+                }
+            }
+        }
+        handleFile("./404.html");
+        return NotFound;
 
     }
     return BadRequest;
@@ -370,6 +392,7 @@ void HttpConn::handleResponse(StatusCode code) {
         case NotFound: header += " Not Found"; break;
         case InternalError: header+= " Internal Error"; break;
         case Wait: break;
+        case NoResponse: writeable_ = true; return;
     } 
     header += "\r\n";
     header += "Server: Xiaojy\r\n";
@@ -433,22 +456,21 @@ HttpConn::StatusCode HttpConn::handleFile(const std::string& filepath) {
     }
 
     char* file = static_cast<char*>(mmapAddr);
-    body_ = std::string(file, file + fileStat.st_size);
+    body_.assign(file, file + fileStat.st_size);
     munmap(mmapAddr, fileStat.st_size);
     handleType(filepath);
     return OK;
 }
 
 void HttpConn::handleType(const std::string& filepath) {
-    if (filepath.find(".html") != filepath.npos) {
-        outputHeaders_["Content-Type"] = "text/html; charset=utf-8";
-    } else if (filepath.find(".jpg") != filepath.npos) {
-        outputHeaders_["Content-Type"] = "image/jpg";
-    } else if (filepath.find(".ico") != filepath.npos) {
-        outputHeaders_["Content-Type"] = "image/x-icon";
-    } else if (filepath.find(".css") != filepath.npos) {
-        outputHeaders_["Content-Type"] = "text/css";
-    } else {
-        outputHeaders_["Content-Type"] = "text/plain";
-    }
+    size_t index;
+    if ((index = filepath.find(".")) != filepath.npos) {
+        auto it = contentType_.find(filepath.substr(index));
+        if (it != contentType_.end()) {
+            outputHeaders_["Content-Type"] = it->second;
+            return;
+        }
+    } 
+    outputHeaders_["Content-Type"] = "text/plain";
+    
 }
