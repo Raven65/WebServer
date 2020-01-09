@@ -1,10 +1,19 @@
-## Version 0.2
+### 并发模型
+
+项目使用Reactor模型，有固定数量的I/O线程作为Sub Reactor，每个线程都使用epoll作为I/O复用方式。
+
+主线程只负责处理监听listenfd，而Sub Reactor负责建立连接后的I/O工作。此外还有一个LOG线程进行日志写入。目前不设置另外的工作线程。
 
 ### EventLoop, Channel, EPoller
 
 这三个核心结构是模仿muduo的设计实现，不过比muduo实际代码作了简化。
 
 实现one loop per thread的设计，每个I/O线程里都有一个sub reactor进行事件的分发，main reactor负责listen和accept套接字，然后通过其中一个I/O线程处理新连接的I/O事件。
+
+当SubReactor在epoll\_wait阻塞时，MainReactor通过linux的eventfd特性唤醒子线程，处理新连接事件。
+
+模仿muduo使用了runInLoop和queueInLoop的设计，queueInLoop类似nginx的post event设计，在完成一次epoll返回事件的处理后才调用注册的函数。
+当A线程向B线程添加新事件时，注册到B事件的事件队列中，这时锁征用只发生在A和B之间。MainReactor就是通过这个方式在SubReactor中注册处理新建立的连接的，再配合eventfd将SubReactor唤醒。
 
 EventLoop是每个线程里的循环，EPoller用epoll实现对事件I/O事件监听，并根据发生事件的fd激活Channel，记录返回events。
 
@@ -14,9 +23,7 @@ EventLoop中根据Channel的revents调用注册好的回调函数。
 
 搭配EventLoopThreadPool，构建线程池，避免创建开销。
 
-模仿muduo使用了runInLoop和queueInLoop的设计，queueInLoop类似nginx的post event设计，在完成一次epoll返回事件的处理后才调用注册的函数，这里再配合runInLoop可以解决潜在的线程不安全问题。
-
-由于静态HTTP解析处理速度较快，计算较少，故没有再使用工作线程池来处理，这样可以减少线程上下文切换，提高性能。
+由于静态HTTP解析处理速度较快，计算较少，故没有再使用工作线程池来处理，这样可以减少线程上下文切换和不必要的锁争用，提高性能。
 
 ### 非阻塞I/O，LT/ET
 
@@ -30,20 +37,21 @@ EventLoop中根据Channel的revents调用注册好的回调函数。
 
 由于一开始是从《Linux高性能服务器编程》开始入手的，本项目选择的是ET模式。
 
-### HTTP解析
+### HTTP业务
 
 每个HttpConn负责一个fd，并关联到对应的channel。buffer采用vector<char>，由于存储上表现为char[]，所以比较适配系统I/O调用。
 
 状态机，算是参考最少的部分。在解析过程利用C++ STL库的算法，整个代码相比《Linux高性能服务器编程》里简洁很多。
 
-能处理GET和HEAD请求。
+处理GET和HEAD请求。
 
 模仿nginx，预先创建了HTTP连接池，避免频繁的创建和销毁对象的开销，利用智能指针来保证生命周期。
 
 用链表存储空闲连接，如果链表中有空闲连接则直接取，没有就新建一个连接，用完后先从epoll中移除事件，然后关闭fd，再做处理加入到空闲连接链表。
 
+实现了POST请求，并简单利用mysql做了一个用户注册、登陆功能的测试。
 
-TODO：增加POST，DELETE等请求。
+TODO：mysql连接池，调通cgi。
 
 ### Timer，超时检查
 
