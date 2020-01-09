@@ -55,7 +55,7 @@ cd build
 
 以下测试时没有连上mysql，根据测试，保持mysql连接对性能有一定影响。
 
-PS: nginx 的Response Header要大的多，所以虽然QPS更小，但从Transfer Rate比较还是nginx更优秀。结果可见imgs里的图。
+PS: nginx 的Response Header要大的多，所以虽然QPS更小，但从Transfer Rate比较还是nginx更优秀。
 
 PPS: 后来又使用了WebBench和http\_load测试，发现用三个测试工具结果差别很大，在WebBench测试时本项目表现比muduo和nginx差了很多，但http\_load测试时又和用AB时一样本项目是表现最好的，应该和客户端实现方式有关，下面结果只针对ApacheBench。
 
