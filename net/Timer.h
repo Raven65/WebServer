@@ -11,16 +11,22 @@ typedef std::function<void()> timeoutCallBack;
 class Timer : noncopyable {
     friend class TimerHeap;
 public:
-    Timer(long timeout, timeoutCallBack callBack, int heapIndex);
+    struct timeType_ {
+        long sec;
+        long msec;
+        bool operator<(const timeType_& t) const { return sec < t.sec || (sec == t.sec && msec < t.msec); }
+        bool operator>=(const timeType_& t) const { return !this->operator<(t); }
+    };
+    Timer(timeType_ timeout, timeoutCallBack callBack, int heapIndex);
     ~Timer() {}
     
     void setDeleted() { heapIndex_ = -1; callBack_ = std::function<void()>(); }
     bool isDeleted() { return heapIndex_ == -1; }
     void runCallBack() { if(callBack_) callBack_(); }
-    long getTimeout() { return timeout_; }
+    timeType_ getTimeout() const { return timeout_; }
 
 private:
-    long timeout_;
+    timeType_ timeout_;
     timeoutCallBack callBack_;
     
     int heapIndex_;
@@ -35,7 +41,7 @@ public:
     TimerHeap(EventLoop* loop);
     ~TimerHeap();
 
-    void addTimer(int id, long timeout, timeoutCallBack callBack);
+    void addTimer(int id, long timeout_ms, timeoutCallBack callBack);
     void removeTimer(int id);
     
     void modify(size_t index);
@@ -56,9 +62,9 @@ private:
     std::vector<TimerPtr> timerHeap_;
     
 
-    long timeCache_;
+    Timer::timeType_ timeCache_;
     bool timeFlag_;
 
-    void setTime(long now, long time);
+    bool setTime(const Timer::timeType_& now, const Timer::timeType_& time);
 };
 

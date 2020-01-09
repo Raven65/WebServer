@@ -10,7 +10,7 @@
 #include "Channel.h"
 #include "../base/Logger.h"
 
-Timer::Timer(long timeout, timeoutCallBack callBack, int heapIndex)
+Timer::Timer(timeType_ timeout, timeoutCallBack callBack, int heapIndex)
     : timeout_(timeout), callBack_(std::move(callBack)), heapIndex_(heapIndex) {
 }
 
@@ -27,23 +27,27 @@ TimerHeap::TimerHeap(EventLoop* loop)
 
 TimerHeap::~TimerHeap() { close(timerfd_); }
 
-void TimerHeap::addTimer(int id, long timeout, timeoutCallBack callBack) {
+void TimerHeap::addTimer(int id, long timeout_ms, timeoutCallBack callBack) {
     if (timeFlag_) {
         struct timespec tv;
         clock_gettime(CLOCK_MONOTONIC, &tv);
-        timeCache_ = tv.tv_sec * 1000 + tv.tv_nsec / 1000 / 1000;
+        timeCache_.sec = tv.tv_sec;
+        timeCache_.msec = tv.tv_nsec / 1000 / 1000;
         timeFlag_ = false;
     }
+    Timer::timeType_ timeout(timeCache_);
+    timeout.sec += (timeCache_.msec + timeout_ms) / 1000;
+    timeout.msec = (timeCache_.msec + timeout_ms) % 1000;
     if (timerMap_.find(id) != timerMap_.end()) {
         TimerPtr tmp(timerMap_[id].lock());
         if (tmp && tmp->heapIndex_ != -1) {
-            tmp->timeout_ = timeCache_ + timeout;
+            tmp->timeout_ = std::move(timeout);
             tmp->callBack_ = std::move(callBack);
             modify(tmp->heapIndex_);
             return;
         }
     }
-    TimerPtr timer(new Timer(timeCache_ + timeout, std::move(callBack), timerHeap_.size()));
+    TimerPtr timer(new Timer(std::move(timeout), std::move(callBack), timerHeap_.size()));
     timerMap_[id] = timer;
     timerHeap_.push_back(timer);
     upHeap(timerHeap_.size() - 1);
@@ -67,7 +71,7 @@ void TimerHeap::removeTimer(int id) {
 
 void TimerHeap::modify(size_t index) {
     size_t parent = (index - 1) / 2;
-    if (index > 0 && timerHeap_[parent]->timeout_ > timerHeap_[index]->timeout_)
+    if (index > 0 && timerHeap_[index]->timeout_ < timerHeap_[parent]->timeout_)
         upHeap(index);
     else 
         downHeap(index);
@@ -94,7 +98,7 @@ void TimerHeap::upHeap(size_t index) {
 void TimerHeap::downHeap(size_t index) {
     size_t child = index * 2 + 1;
     while (child < timerHeap_.size()) {
-        if (child + 1 < timerHeap_.size() && timerHeap_[child]->timeout_ > timerHeap_[child]->timeout_) 
+        if (child + 1 < timerHeap_.size() && timerHeap_[child + 1]->timeout_ < timerHeap_[child]->timeout_) 
             ++child;
         if (timerHeap_[index]->timeout_ < timerHeap_[child]->timeout_) 
             break;
@@ -116,7 +120,7 @@ void TimerHeap::handleTimeout() {
     }
     struct timespec tv;
     clock_gettime(CLOCK_MONOTONIC, &tv);
-    long now = tv.tv_sec * 1000 + tv.tv_nsec / 1000 / 1000;
+    Timer::timeType_ now = {tv.tv_sec, tv.tv_nsec / 1000 / 1000};
     while (!timerHeap_.empty()) {
         TimerPtr tnow = timerHeap_.front();
         if (tnow->isDeleted()) {
@@ -127,14 +131,23 @@ void TimerHeap::handleTimeout() {
             LOG << "Connection Timeout!";
             tnow->runCallBack();
         } else {
-            setTime(now, tnow->getTimeout());
+            if (setTime(now, tnow->getTimeout())) {
+                break;
+            } else {
+                pop(0);
+            }
         }
     }
+    if (timerHeap_.empty()) setTime(now, {0, 0});
 }
 
-void TimerHeap::setTime(long now, long time) {
-    time -= now;
-    howlong_.it_value.tv_sec = time / 1000;
-    howlong_.it_value.tv_nsec = (time % 1000) * 1000 * 1000;
-    timerfd_settime(timerfd_, 0, &howlong_, NULL);  
+bool TimerHeap::setTime(const Timer::timeType_& now, const Timer::timeType_& time) {
+    if (time.sec != 0 && time.msec != 0 && time < now) {
+        LOG <<"Timer error ";
+        return false;
+    }
+    howlong_.it_value.tv_sec = time.sec;
+    howlong_.it_value.tv_nsec = time.msec * 1000 * 1000;
+    if (timerfd_settime(timerfd_, TFD_TIMER_ABSTIME, &howlong_, NULL) == -1) return false; 
+    return true;
 }
