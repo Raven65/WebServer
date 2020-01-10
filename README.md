@@ -55,9 +55,11 @@ cd build
 
 测试环境: 虚拟机Ubuntu 18.04, 4 CPUs, 4 GB Memory
 
+请求内容：GET请求/hello
+
 响应内容: 内存中的"Hello World"字符串
 
-以下测试时没有连上mysql，根据测试，保持mysql连接对性能有一定影响。
+以下测试时没有连上mysql，根据测试，保持mysql连接对性能有一定影响。三个项目都用root权限启动。
 
 PS: nginx 的Response Header要大的多，所以虽然QPS更小，但从Transfer Rate比较还是nginx更优秀，imgs目录下有具体的结果图。
 
@@ -67,4 +69,4 @@ PPS: 后来又使用了WebBench和http\_load测试，发现用三个测试工具
 
 ![avatar](https://github.com/Raven65/WebServer/blob/master/imgs/performance.png)
 
-![avatar](https://github.com/Raven65/WebServer/blob/master/imgs/performanc-keepalive.png)
+![avatar](https://github.com/Raven65/WebServer/blob/master/imgs/performance-keepalive.png)
